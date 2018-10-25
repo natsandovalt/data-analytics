@@ -47,8 +47,8 @@ ui <- dashboardPage(title = "Project", header, sidebar, body, skin = 'red')
 # Server
 server <- function(input, output){
     total.revenue <- sum(recommendation$Revenue)
-    sales.account <- recommendation %>% group_by(Account) %>% summarise(value = sum(Revenue)) %>% filter(value = max(value))
-    prof.prod <- recommendation %>% group_by(Product) %>% summarise(value = sum(Revenue)) %>% filter(value = max(value))
+    sales.account <- recommendation %>% group_by(Account) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
+    prof.prod <- recommendation %>% group_by(Product) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
     
     # valueBoxOutput content
     output$value1 <- renderValueBox({
