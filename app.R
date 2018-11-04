@@ -15,9 +15,14 @@ header <- dashboardHeader(title = "Data Analytics")
 # Sidebar content
 sidebar <- dashboardSidebar(
     sidebarMenu(
-        menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+        menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome")),
         #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
-        menuItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
+        #,
+        menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
+                 selectInput("user", "User:", width = 300, choices=unique(logs$User)),
+                 menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
+                 menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
+        )
     )
 )
 
@@ -50,8 +55,6 @@ frow21 <- fluidRow(
     status = "primary",
     solidHeader = TRUE,
     collapsible = TRUE,
-    selectInput("user", "User:", width = 300,
-                choices=unique(logs$User)),
     plotlyOutput("totalByType")
   )
 )
@@ -63,9 +66,6 @@ frow.map <- fluidRow(
     width = 12,
     solidHeader = TRUE,
     collapsible = FALSE,
-    selectInput("user", "User:", width = 300,
-                choices=unique(logs$User)),
-    hr(),
     leafletOutput("mymap",height = 600)
   )
 )
@@ -73,8 +73,8 @@ frow.map <- fluidRow(
 
 body <- dashboardBody(
   tabItems(
-    tabItem(tabName = "dashboard", frow1, frow2, frow21),
-    #tabItem(tabName = "x", frow3),
+    tabItem(tabName = "allUsers", frow1, frow2),
+    tabItem(tabName = "singleUser", frow21),
     tabItem(tabName = "map", frow.map)
   )
 )
