@@ -2,6 +2,7 @@ library(shiny)
 library(shinydashboard)
 library(ggplot2)
 library(dplyr)
+library(plotly)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
@@ -43,6 +44,18 @@ frow2 <- fluidRow(
     )
 )
 
+frow21 <- fluidRow(
+  box(
+    title = "Total number of each mode",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    selectInput("user", "User:", width = 300,
+                choices=unique(logs$User)),
+    plotlyOutput("totalByType")
+  )
+)
+
 frow.map <- fluidRow(
   box(
     title = "Location history",
@@ -60,7 +73,7 @@ frow.map <- fluidRow(
 
 body <- dashboardBody(
   tabItems(
-    tabItem(tabName = "dashboard", frow1, frow2),
+    tabItem(tabName = "dashboard", frow1, frow2, frow21),
     #tabItem(tabName = "x", frow3),
     tabItem(tabName = "map", frow.map)
   )
@@ -121,6 +134,11 @@ server <- function(input, output){
                xlab("Account") +
                theme(legend.position = "bottom", plot.title = element_text(size = 15, face = "bold")) +
                ggtitle("Revenue by Region") + labs(fill = "Region")
+    })
+    
+    output$totalByType <- renderPlotly({
+      logs <- logs.filtered()
+      plot_ly(x = logs$Type, type = "histogram")
     })
     
     getColor <- function(logs) {
