@@ -4,7 +4,10 @@ library(ggplot2)
 library(dplyr)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
+surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
+logs <- read.csv('logs (1).csv', sep = ";")
 
+saveRDS(logs, "./logs.rds")
 # Title of the header
 header <- dashboardHeader(title = "Data Analytics")
 
@@ -12,6 +15,7 @@ header <- dashboardHeader(title = "Data Analytics")
 sidebar <- dashboardSidebar(
     sidebarMenu(
         menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard"))
+        menuItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome")),
     )
 )
 
@@ -38,9 +42,26 @@ frow2 <- fluidRow(
     )
 )
 
+frow.map <- fluidRow(
+  box(
+    title = "Location history",
+    status = "primary",
+    width = 12,
+    solidHeader = TRUE,
+    collapsible = FALSE,
+    selectInput("user", "User:", width = 300,
+                choices=unique(logs$User)),
+    hr(),
+    leafletOutput("mymap",height = 600)
+  )
+)
 # Construct the body
 
-body <- dashboardBody(frow1, frow2)
+body <- dashboardBody(
+  tabItems(
+    tabItem(tabName = "map", frow.map),
+  )
+)
 
 ui <- dashboardPage(title = "Project", header, sidebar, body, skin = 'red')
 
@@ -49,6 +70,9 @@ server <- function(input, output){
     total.revenue <- sum(recommendation$Revenue)
     sales.account <- recommendation %>% group_by(Account) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
     prof.prod <- recommendation %>% group_by(Product) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
+    logs.filtered <- reactive({
+      x <- logs %>% filter(User==input$user)
+    })
     
     # valueBoxOutput content
     output$value1 <- renderValueBox({
@@ -94,6 +118,49 @@ server <- function(input, output){
                xlab("Account") +
                theme(legend.position = "bottom", plot.title = element_text(size = 15, face = "bold")) +
                ggtitle("Revenue by Region") + labs(fill = "Region")
+    })
+    
+    getColor <- function(logs) {
+      sapply(logs$Type, function(Type) {
+        if(Type == "Behaviour") {
+          "orange"
+        } else if(Type == "Friend") {
+          "gray"
+        } else if(Type == "Auto skipped") {
+          "white"
+        } else if(Type == "Snoozed") {
+          "yellow"
+        } else if(Type == "On time") {
+          "blue"
+        } else if(Type == "Skipped") {
+          "green"
+        } else {
+          "red"
+        }
+      })
+    }
+    
+    icons <- awesomeIcons(
+      icon = 'fire',
+      iconColor = 'black',
+      library = 'fa',
+      markerColor = getColor(logs)
+    )
+    
+    output$mymap <- renderLeaflet({
+      logs <- logs.filtered()
+      
+      m <- leaflet(data = logs) %>%
+        addTiles() %>%
+        addAwesomeMarkers(lng = logs$Longitude,
+                   lat = logs$Latitude,
+                   label = paste(logs$User, logs$Type, logs$Time, sep = ", "),
+                   group = logs,
+                   clusterOptions = markerClusterOptions(removeOutsideVisibleBounds = F),
+                   labelOptions = labelOptions(noHide = F,
+                                               direction = 'auto'),
+                   icon=icons)
+      m
     })
 }
 
