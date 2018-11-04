@@ -61,7 +61,7 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "dashboard", frow1, frow2),
-    tabItem(tabName = "x", frow3),
+    #tabItem(tabName = "x", frow3),
     tabItem(tabName = "map", frow.map)
   )
 )
