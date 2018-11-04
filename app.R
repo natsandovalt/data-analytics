@@ -14,8 +14,9 @@ header <- dashboardHeader(title = "Data Analytics")
 # Sidebar content
 sidebar <- dashboardSidebar(
     sidebarMenu(
-        menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard"))
-        menuItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome")),
+        menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+        #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
+        menuItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
     )
 )
 
@@ -59,7 +60,9 @@ frow.map <- fluidRow(
 
 body <- dashboardBody(
   tabItems(
-    tabItem(tabName = "map", frow.map),
+    tabItem(tabName = "dashboard", frow1, frow2),
+    tabItem(tabName = "x", frow3),
+    tabItem(tabName = "map", frow.map)
   )
 )
 
