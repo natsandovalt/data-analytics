@@ -1,2 +1,8 @@
 
 sample_logs\.rds
+
+\.RData
+
+\.Rhistory
+
+\.DS_Store
