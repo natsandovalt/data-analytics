@@ -3,6 +3,7 @@ library(shinydashboard)
 library(ggplot2)
 library(dplyr)
 library(plotly)
+library(leaflet)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
