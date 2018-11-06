@@ -3,12 +3,12 @@ library(shinydashboard)
 library(ggplot2)
 library(dplyr)
 library(plotly)
+library(leaflet)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
 logs <- read.csv('logs (1).csv', sep = ";")
 
-saveRDS(logs, "./logs.rds")
 # Title of the header
 header <- dashboardHeader(title = "Data Analytics")
 
@@ -56,6 +56,23 @@ frow21 <- fluidRow(
     solidHeader = TRUE,
     collapsible = TRUE,
     plotlyOutput("totalByType")
+  ),
+  box(
+    title = "Cigarette consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("freqWeekday")
+  )
+)
+
+frow22 <- fluidRow(
+  box(
+    title = "Frequency",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("freqTime")
   )
 )
 
@@ -74,7 +91,7 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2),
-    tabItem(tabName = "singleUser", frow21),
+    tabItem(tabName = "singleUser", frow21, frow22),
     tabItem(tabName = "map", frow.map)
   )
 )
@@ -89,6 +106,11 @@ server <- function(input, output){
     logs.filtered <- reactive({
       x <- logs %>% filter(User==input$user)
     })
+    pickup_date <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%d/%m/%Y")
+    pickup_time <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%H:%M")
+    logs$Date <- pickup_date
+    logs$OnlyTime <- pickup_time
+    logs$Weekday <- weekdays(as.Date(logs$Date,format="%d/%m/%Y"))
     
     # valueBoxOutput content
     output$value1 <- renderValueBox({
@@ -141,6 +163,25 @@ server <- function(input, output){
       plot_ly(x = logs$Type, type = "histogram")
     })
     
+    #cigarette consumption per weekday
+    output$freqWeekday <- renderPlotly({
+      logs <- logs.filtered()
+      df <- count(logs, 'Weekday')
+      #cat(file=stderr(),df)
+      df$Weekday <- factor(df$Weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+      plot_ly(data = df, x = df$Weekday, y = df$freq, type = 'bar')
+    })
+    
+    #frequency graph by time
+    output$freqTime <- renderPlotly({
+      logs <- logs.filtered()
+      df <- count(logs, 'Date')
+      df$newdate <- strptime(as.character(df$Date), "%d/%m/%Y")
+      df$plotlydate <- format(df$newdate, "%Y-%m-%d")
+      plot_ly(df, x = df$plotlydate, y = df$freq, mode = 'lines')
+    })
+    
+    #single user map
     getColor <- function(logs) {
       sapply(logs$Type, function(Type) {
         if(Type == "Behaviour") {
