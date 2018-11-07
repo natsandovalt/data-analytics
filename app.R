@@ -27,18 +27,18 @@ sidebar <- dashboardSidebar(
 )
 
 frow1 <- fluidRow(
-    valueBoxOutput("value1"),
-    valueBoxOutput("value2"),
-    valueBoxOutput("value3")
+    # valueBoxOutput("value1"),
+    # valueBoxOutput("value2"),
+    # valueBoxOutput("value3")
 )
 
 frow2 <- fluidRow(
     box(
-        title = "Revenue per account",
+        title = "Age groups by gender",
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
-        plotOutput("revenuebyPrd", height = "300px")
+        plotOutput("maleVsFemale", height = "300px")
     ),
     box(
         title = "Revenue per product",
@@ -111,41 +111,43 @@ server <- function(input, output){
     logs$Date <- pickup_date
     logs$OnlyTime <- pickup_time
     logs$Weekday <- weekdays(as.Date(logs$Date,format="%d/%m/%Y"))
+    surveydata$Gender <- as.factor(surveydata$Gender)
     
     # valueBoxOutput content
-    output$value1 <- renderValueBox({
-        valueBox(
-            formatC(sales.account$value, format = "d", big.mark = ","),
-            paste("Top Account:", sales.account$Account),
-            icon = icon("stats", lib = "glyphicon"),
-            color = "purple")
-    })
+    # output$value1 <- renderValueBox({
+    #     valueBox(
+    #         formatC(sales.account$value, format = "d", big.mark = ","),
+    #         paste("Top Account:", sales.account$Account),
+    #         icon = icon("stats", lib = "glyphicon"),
+    #         color = "purple")
+    # })
 
-    output$value2 <- renderValueBox({
-        valueBox(
-            formatC(total.revenue, format = "d", big.mark = ","),
-            "Total Expected Revenue",
-            icon = icon("gbp", lib = "glyphicon"),
-            color = "green")
-    })
+    # output$value2 <- renderValueBox({
+    #     valueBox(
+    #         formatC(total.revenue, format = "d", big.mark = ","),
+    #         "Total Expected Revenue",
+    #         icon = icon("gbp", lib = "glyphicon"),
+    #         color = "green")
+    # })
 
-    output$value3 <- renderValueBox({
-        valueBox(
-            formatC(prof.prod$value, format = "d", big.mark = ","),
-            paste("Top Product:", prof.prod$Product),
-            icon = icon("menu-hamburger", lib = "glyphicon"),
-            color = "yellow")
-    })
+    # output$value3 <- renderValueBox({
+    #     valueBox(
+    #         formatC(prof.prod$value, format = "d", big.mark = ","),
+    #         paste("Top Product:", prof.prod$Product),
+    #         icon = icon("menu-hamburger", lib = "glyphicon"),
+    #         color = "yellow")
+    # })
 
     # plotOutput content
-    output$revenuebyPrd <- renderPlot({
-        ggplot(data = recommendation,
-               aes(x = Product, y = Revenue, fill = factor(Region))) + 
-               geom_bar(position = "dodge", stat = "identity") +
-               ylab("Revenue (in Euros)") +
-               xlab("Product") +
+    output$maleVsFemale <- renderPlot({
+        ggplot(data = surveydata,
+               aes(x = Age)) + 
+               geom_histogram() +
+               facet_wrap(~Gender) +
+               ylab("# of people") +
+               xlab("Age") +
                theme(legend.position = "bottom", plot.title = element_text(size = 15, face = "bold")) +
-               ggtitle("Revenue by Product") + labs(fill = "Region")
+               ggtitle("Age groups by gender") + labs(fill = "Region")
     })
 
     output$revenuebyRegion <- renderPlot({
