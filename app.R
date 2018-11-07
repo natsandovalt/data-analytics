@@ -49,6 +49,12 @@ frow2 <- fluidRow(
     )
 )
 
+frow20 <- fluidRow(
+  valueBoxOutput("userGender"),
+  valueBoxOutput("userAge"),
+  valueBoxOutput("userMarriage")
+)
+
 frow21 <- fluidRow(
   box(
     title = "Total number of each mode",
@@ -68,10 +74,11 @@ frow21 <- fluidRow(
 
 frow22 <- fluidRow(
   box(
-    title = "Frequency",
+    title = "Frequency of usage by mode",
     status = "primary",
     solidHeader = TRUE,
     collapsible = TRUE,
+    selectInput("mode", "Mode:", width = 300, choices=unique(logs$Type)),
     plotlyOutput("freqTime")
   )
 )
@@ -91,7 +98,7 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2),
-    tabItem(tabName = "singleUser", frow21, frow22),
+    tabItem(tabName = "singleUser", frow20, frow21, frow22),
     tabItem(tabName = "map", frow.map)
   )
 )
@@ -105,6 +112,15 @@ server <- function(input, output){
     prof.prod <- recommendation %>% group_by(Product) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
     logs.filtered <- reactive({
       x <- logs %>% filter(User==input$user)
+    })
+    logs.filterModeAndUser <- reactive({
+      x <- logs %>% filter(User==input$user & Type==input$mode)
+    })
+    logs.filterSmokedAndUser <- reactive({
+      x <- logs %>% filter(User==input$user, Type=='Behaviour' | Type=='Cheated' | Type=='On time')
+    })
+    surveydata.filterUser <- reactive({
+      x <- surveydata %>% filter(Name==input$user)
     })
     pickup_date <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%d/%m/%Y")
     pickup_time <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%H:%M")
@@ -160,27 +176,77 @@ server <- function(input, output){
                ggtitle("Revenue by Region") + labs(fill = "Region")
     })
     
+    #single user valueBoxOutput content
+    genderIcon <- function(gender){
+      if(gender == "Male"){
+        "mars"
+      }else{
+        "venus"
+      }
+    }
+    
+    genderColor <- function(gender){
+      if(gender == "Male"){
+        "aqua"
+      }else if(gender == "Female"){
+        "fuchsia"
+      }else{
+        "?"
+      }
+    }
+    
+    output$userGender <- renderInfoBox({
+      data <- surveydata.filterUser()
+      if(identical(data$Gender, character(0))){
+        g <- "?"
+      }else{
+        g <- data$Gender 
+      }
+      infoBox("Gender", 
+              g, 
+              icon = icon(genderIcon(g), lib = "font-awesome"),
+              color = genderColor(g))
+    })
+    
+    output$userAge <- renderInfoBox({
+      data <- surveydata.filterUser()
+      infoBox("Age", 
+              data$Age, 
+              icon = icon("birthday-cake", lib = "font-awesome"),
+              color = "green")
+    })
+    
+    output$userMarriage <- renderInfoBox({
+      data <- surveydata.filterUser()
+      infoBox("Family Status", 
+              data$`Family status`, 
+              icon = icon("heart", lib = "font-awesome"),
+              color = "maroon")
+    })
+    
+    #Total number of each mode
     output$totalByType <- renderPlotly({
       logs <- logs.filtered()
-      plot_ly(x = logs$Type, type = "histogram")
+      plot_ly(logs, labels = logs$Type, type = "pie")
     })
     
     #cigarette consumption per weekday
     output$freqWeekday <- renderPlotly({
-      logs <- logs.filtered()
-      df <- count(logs, 'Weekday')
+      logs <- logs.filterSmokedAndUser()
+      df <- count(logs, Weekday)
       #cat(file=stderr(),df)
       df$Weekday <- factor(df$Weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
-      plot_ly(data = df, x = df$Weekday, y = df$freq, type = 'bar')
+      plot_ly(data = df, x = df$Weekday, y = df$n, type = 'bar')
     })
     
     #frequency graph by time
     output$freqTime <- renderPlotly({
-      logs <- logs.filtered()
-      df <- count(logs, 'Date')
+      logs <- logs.filterModeAndUser()
+      df <- count(logs, Date)
       df$newdate <- strptime(as.character(df$Date), "%d/%m/%Y")
       df$plotlydate <- format(df$newdate, "%Y-%m-%d")
-      plot_ly(df, x = df$plotlydate, y = df$freq, mode = 'lines')
+      df <- df[order(as.Date(df$plotlydate, format = "%Y-%m-%d")),]
+      plot_ly(df, x = df$plotlydate, y = df$n, type = 'scatter', mode = 'lines')
     })
     
     #single user map
@@ -229,3 +295,5 @@ server <- function(input, output){
 }
 
 shinyApp(ui, server)
+
+#Shiny dashboard: Valid colors are: red, yellow, aqua, blue, light-blue, green, navy, teal, olive, lime, orange, fuchsia, purple, maroon, black.
