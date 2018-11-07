@@ -27,9 +27,9 @@ sidebar <- dashboardSidebar(
 )
 
 frow1 <- fluidRow(
-    valueBoxOutput("value1")
-    # valueBoxOutput("value2"),
-    # valueBoxOutput("value3")
+    valueBoxOutput("value1"),
+    valueBoxOutput("value2"),
+    valueBoxOutput("value3")
 )
 
 frow2 <- fluidRow(
@@ -114,31 +114,34 @@ server <- function(input, output){
     surveydata$Gender <- as.factor(surveydata$Gender)
     types <- count(logs, `Type`)
     ordered <- types[with(types, order(-n)), ]
+    users <- count(logs, User)
+    total_of_users <- nrow(users)
+    surveydata_users <- nrow(surveydata)
     
     # valueBoxOutput content
     output$value1 <- renderValueBox({
         infoBox(
-            "Top Mode",
+            "Top mode",
             ordered$Type[1],
             icon = icon("list-ol", lib = "font-awesome"),
-            color = 'green')
+            color = 'olive')
     })
 
-    # output$value2 <- renderValueBox({
-    #     valueBox(
-    #         formatC(total.revenue, format = "d", big.mark = ","),
-    #         "Total Expected Revenue",
-    #         icon = icon("gbp", lib = "glyphicon"),
-    #         color = "green")
-    # })
+    output$value2 <- renderValueBox({
+        infoBox(
+            "Number of users",
+            total_of_users,
+            icon = icon("users", lib = "font-awesome"),
+            color = "aqua")
+    })
 
-    # output$value3 <- renderValueBox({
-    #     valueBox(
-    #         formatC(prof.prod$value, format = "d", big.mark = ","),
-    #         paste("Top Product:", prof.prod$Product),
-    #         icon = icon("menu-hamburger", lib = "glyphicon"),
-    #         color = "yellow")
-    # })
+    output$value3 <- renderValueBox({
+        infoBox(
+            "Users that didn't answer the survey",
+            (total_of_users - surveydata_users),
+            icon = icon("exclamation", lib = "font-awesome"),
+            color = "teal")
+    })
 
     # plotOutput content
     output$ageByGender <- renderPlot({
