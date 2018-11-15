@@ -49,6 +49,23 @@ frow2 <- fluidRow(
     )
 )
 
+frow3 <- fluidRow(
+  box(
+    title = "Total number of each mode",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("totalByTypeAll")
+  ),
+  box(
+    title = "Cigarette consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("freqWeekdayAll")
+  )
+)
+
 frow20 <- fluidRow(
   valueBoxOutput("userGender"),
   valueBoxOutput("userAge"),
@@ -97,7 +114,7 @@ frow.map <- fluidRow(
 
 body <- dashboardBody(
   tabItems(
-    tabItem(tabName = "allUsers", frow1, frow2),
+    tabItem(tabName = "allUsers", frow1, frow2, frow3),
     tabItem(tabName = "singleUser", frow20, frow21, frow22),
     tabItem(tabName = "map", frow.map)
   )
@@ -118,6 +135,9 @@ server <- function(input, output){
     })
     logs.filterSmokedAndUser <- reactive({
       x <- logs %>% filter(User==input$user, Type=='Behaviour' | Type=='Cheated' | Type=='On time')
+    })
+    logs.Smoked <- reactive({
+      x <- logs %>% filter(Type=='Behaviour' | Type=='Cheated' | Type=='On time')
     })
     surveydata.filterUser <- reactive({
       x <- surveydata %>% filter(Name==input$user)
@@ -239,7 +259,12 @@ server <- function(input, output){
       logs <- logs.filtered()
       plot_ly(logs, labels = logs$Type, type = "pie")
     })
-    
+
+    #Total number of each mode all users
+    output$totalByTypeAll <- renderPlotly({
+      plot_ly(logs, labels = logs$Type, type = "pie")
+    })
+
     #cigarette consumption per weekday
     output$freqWeekday <- renderPlotly({
       logs <- logs.filterSmokedAndUser()
@@ -248,7 +273,16 @@ server <- function(input, output){
       df$Weekday <- factor(df$Weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
       plot_ly(data = df, x = df$Weekday, y = df$n, type = 'bar')
     })
-    
+
+    #cigarette consumption per weekday all users
+    output$freqWeekdayAll <- renderPlotly({
+      logs <- logs.Smoked()
+      df <- count(logs, Weekday)
+      #cat(file=stderr(),df)
+      df$Weekday <- factor(df$Weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+      plot_ly(data = df, x = df$Weekday, y = df$n, type = 'bar')
+    })
+
     #frequency graph by time
     output$freqTime <- renderPlotly({
       logs <- logs.filterModeAndUser()
