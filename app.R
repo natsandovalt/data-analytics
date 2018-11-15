@@ -27,9 +27,9 @@ sidebar <- dashboardSidebar(
 )
 
 frow1 <- fluidRow(
-    # valueBoxOutput("value1"),
-    # valueBoxOutput("value2"),
-    # valueBoxOutput("value3")
+    valueBoxOutput("value1"),
+    valueBoxOutput("value2"),
+    valueBoxOutput("value3")
 )
 
 frow2 <- fluidRow(
@@ -38,14 +38,14 @@ frow2 <- fluidRow(
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
-        plotOutput("maleVsFemale", height = "300px")
+        plotOutput("ageByGender", height = "300px")
     ),
     box(
-        title = "Revenue per product",
+        title = "User status",
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
-        plotOutput("revenuebyRegion", height = "300px")
+        plotlyOutput("status", height = "300px")
     )
 )
 
@@ -128,34 +128,39 @@ server <- function(input, output){
     logs$OnlyTime <- pickup_time
     logs$Weekday <- weekdays(as.Date(logs$Date,format="%d/%m/%Y"))
     surveydata$Gender <- as.factor(surveydata$Gender)
+    types <- count(logs, `Type`)
+    ordered <- types[with(types, order(-n)), ]
+    users <- count(logs, User)
+    total_of_users <- nrow(users)
+    surveydata_users <- nrow(surveydata)
     
     # valueBoxOutput content
-    # output$value1 <- renderValueBox({
-    #     valueBox(
-    #         formatC(sales.account$value, format = "d", big.mark = ","),
-    #         paste("Top Account:", sales.account$Account),
-    #         icon = icon("stats", lib = "glyphicon"),
-    #         color = "purple")
-    # })
+    output$value1 <- renderValueBox({
+        infoBox(
+            "Top mode",
+            ordered$Type[1],
+            icon = icon("list-ol", lib = "font-awesome"),
+            color = 'olive')
+    })
 
-    # output$value2 <- renderValueBox({
-    #     valueBox(
-    #         formatC(total.revenue, format = "d", big.mark = ","),
-    #         "Total Expected Revenue",
-    #         icon = icon("gbp", lib = "glyphicon"),
-    #         color = "green")
-    # })
+    output$value2 <- renderValueBox({
+        infoBox(
+            "Number of users",
+            total_of_users,
+            icon = icon("users", lib = "font-awesome"),
+            color = "aqua")
+    })
 
-    # output$value3 <- renderValueBox({
-    #     valueBox(
-    #         formatC(prof.prod$value, format = "d", big.mark = ","),
-    #         paste("Top Product:", prof.prod$Product),
-    #         icon = icon("menu-hamburger", lib = "glyphicon"),
-    #         color = "yellow")
-    # })
+    output$value3 <- renderValueBox({
+        infoBox(
+            "Users that didn't answer the survey",
+            (total_of_users - surveydata_users),
+            icon = icon("exclamation", lib = "font-awesome"),
+            color = "teal")
+    })
 
     # plotOutput content
-    output$maleVsFemale <- renderPlot({
+    output$ageByGender <- renderPlot({
         ggplot(data = surveydata,
                aes(x = Age)) + 
                geom_histogram() +
@@ -166,14 +171,19 @@ server <- function(input, output){
                ggtitle("Age groups by gender") + labs(fill = "Region")
     })
 
-    output$revenuebyRegion <- renderPlot({
-        ggplot(data = recommendation,
-               aes(x = Account, y = Revenue, fill = factor(Region))) + 
-               geom_bar(position = "dodge", stat = "identity") +
-               ylab("Revenue (in Euros)") +
-               xlab("Account") +
-               theme(legend.position = "bottom", plot.title = element_text(size = 15, face = "bold")) +
-               ggtitle("Revenue by Region") + labs(fill = "Region")
+    output$status <- renderPlotly({
+        famStatus <- table(surveydata$'Family status', surveydata$'Gender')
+        dataFrame <- as.data.frame(famStatus)
+        statuses <- c("Married", "Single")
+        female <- dataFrame %>% filter(Var2 == 'Female')
+        male <- dataFrame %>% filter(Var2 == 'Male')
+        FEM_Cont <- female$Freq
+        MAL_Cont <- male$Freq
+
+        p <- plot_ly(dataFrame, x = ~statuses, y = ~FEM_Cont, type = 'bar', marker = list(color = 'rgb(240, 98, 146)'), name = 'Female') %>%
+        add_trace(y = ~MAL_Cont, marker = list(color = 'rgb(72, 133, 237)'), name = 'Male') %>%
+        layout(yaxis = list(title = 'Count'), barmode = 'group')
+        
     })
     
     #single user valueBoxOutput content
