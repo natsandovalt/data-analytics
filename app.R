@@ -21,6 +21,7 @@ sidebar <- dashboardSidebar(
         #,
         menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
                  selectInput("user", "User:", width = 300, choices=unique(logs$User)),
+                 menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
                  menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
                  menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
         )
@@ -67,10 +68,17 @@ frow3 <- fluidRow(
   )
 )
 
-frow20 <- fluidRow(
+frow.su_info_1 <- fluidRow(
   valueBoxOutput("userGender"),
   valueBoxOutput("userAge"),
   valueBoxOutput("userMarriage")
+)
+
+frow.su_info_2 <- fluidRow(
+  box(
+    tags$b("Age Category:"),
+    textOutput("su_info", inline = TRUE)
+  )
 )
 
 frow21 <- fluidRow(
@@ -116,7 +124,8 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2, frow3),
-    tabItem(tabName = "singleUser", frow20, frow21, frow22),
+    tabItem(tabName = "su_info", frow.su_info_1, frow.su_info_2),
+    tabItem(tabName = "singleUser", frow21, frow22),
     tabItem(tabName = "map", frow.map)
   )
 )
@@ -263,6 +272,26 @@ server <- function(input, output){
               }, 
               icon = icon("heart", lib = "font-awesome"),
               color = "maroon")
+    })
+    
+    #More single user info
+    ageCategory <- function(a){
+      if(a < 30){
+        "Young"
+      }else if(a >= 30 && a < 50){
+        "Middle"
+      }else{
+        "Old"
+      }
+    }
+    
+    output$su_info <- renderText({
+      data <- surveydata.filterUser()
+      if((input$user %in% surveydata$Name) == FALSE){
+        "-"
+      }else{
+        ageCategory(data$Age) 
+      }
     })
     
     #Total number of each mode
