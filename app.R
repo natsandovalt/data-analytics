@@ -4,6 +4,7 @@ library(ggplot2)
 library(dplyr)
 library(plotly)
 library(leaflet)
+library(lubridate)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
@@ -21,6 +22,7 @@ sidebar <- dashboardSidebar(
         #,
         menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
                  selectInput("user", "User:", width = 300, choices=unique(logs$User)),
+                 menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
                  menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
                  menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
         )
@@ -67,10 +69,18 @@ frow3 <- fluidRow(
   )
 )
 
-frow20 <- fluidRow(
+frow.su_info_1 <- fluidRow(
   valueBoxOutput("userGender"),
   valueBoxOutput("userAge"),
   valueBoxOutput("userMarriage")
+)
+
+frow.su_info_2 <- fluidRow(
+  box(
+    tags$b("Age Category:"), textOutput("ageCat", inline = TRUE), br(),
+    tags$b("Cigarettes Saved:"), textOutput("cigSaved", inline = TRUE), br(),
+    tags$b("Money Saved:"), textOutput("moneySaved", inline = TRUE), br()
+  )
 )
 
 frow21 <- fluidRow(
@@ -116,7 +126,8 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2, frow3),
-    tabItem(tabName = "singleUser", frow20, frow21, frow22),
+    tabItem(tabName = "su_info", frow.su_info_1, frow.su_info_2),
+    tabItem(tabName = "singleUser", frow21, frow22),
     tabItem(tabName = "map", frow.map)
   )
 )
@@ -146,14 +157,55 @@ server <- function(input, output){
     pickup_date <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%d/%m/%Y")
     pickup_time <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%H:%M")
     logs$Date <- pickup_date
+    logs$dateFormatted <- as.Date(format(strptime(as.character(logs$Date), "%d/%m/%Y"), "%Y-%m-%d")) #format to "Date" type
     logs$OnlyTime <- pickup_time
     logs$Weekday <- weekdays(as.Date(logs$Date,format="%d/%m/%Y"))
+    logs$week <- with(logs, isoweek(logs$dateFormatted))
     surveydata$Gender <- as.factor(surveydata$Gender)
     types <- count(logs, `Type`)
     ordered <- types[with(types, order(-n)), ]
     users <- count(logs, User)
     total_of_users <- nrow(users)
     surveydata_users <- nrow(surveydata)
+    
+    userStartDate <- reactive({
+      df <- logs.filtered()
+      x <- df$dateFormatted[1]
+    })
+    
+    userBehaviorWeek <- reactive({
+      df <- logs.filtered()
+      x <- with(df, df[(dateFormatted <= userStartDate() + 7), ])
+    })
+    
+    userOtherWeek <- reactive({
+      df <- logs.filtered()
+      x <- with(df, df[(dateFormatted > userStartDate() + 7), ])
+    })
+    
+    userBehaviorWeek.consumed <- reactive({ #return single number (count)
+      df <- userBehaviorWeek()
+      df <- df %>% filter(Type=='Behaviour')
+      data <- count(df)
+      x <- data$n[1]
+    })
+    
+    userOtherWeek.consumed <- reactive({ #return a df
+      df <- userOtherWeek()
+      x <- userOtherWeek %>%
+        group_by(week) %>%
+        summarise(all = n(),consumed = sum(userOtherWeek$Type=='Cheated' | userOtherWeek$Type=='On time'))
+    })
+    
+    cigSaved <- reactive({
+      behaviorConsumption <- userBehaviorWeek.consumed()
+      df <- userOtherWeek()
+      df <- df %>%
+        group_by(week) %>%
+        summarise(all = n(),consumed = sum(Type=='Cheated' | Type=='On time'))
+      df$saved <- with(df, behaviorConsumption - df$consumed)
+      sum(df$saved)
+    })
     
     # valueBoxOutput content
     output$value1 <- renderValueBox({
@@ -263,6 +315,34 @@ server <- function(input, output){
               }, 
               icon = icon("heart", lib = "font-awesome"),
               color = "maroon")
+    })
+    
+    #More single user info
+    ageCategory <- function(a){
+      if(a < 30){
+        "Young"
+      }else if(a >= 30 && a < 50){
+        "Middle"
+      }else{
+        "Old"
+      }
+    }
+    
+    output$ageCat <- renderText({
+      data <- surveydata.filterUser()
+      if((input$user %in% surveydata$Name) == FALSE){
+        "-"
+      }else{
+        ageCategory(data$Age) 
+      }
+    })
+    
+    output$cigSaved <- renderText({
+      cigSaved()
+    })
+    
+    output$moneySaved <- renderText({
+      paste(cigSaved(),"$")
     })
     
     #Total number of each mode
