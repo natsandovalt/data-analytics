@@ -211,8 +211,10 @@ server <- function(input, output){
     genderIcon <- function(gender){
       if(gender == "Male"){
         "mars"
-      }else{
+      }else if(gender == "Female"){
         "venus"
+      }else{
+        "question"
       }
     }
     
@@ -222,14 +224,14 @@ server <- function(input, output){
       }else if(gender == "Female"){
         "fuchsia"
       }else{
-        "?"
+        "purple"
       }
     }
     
     output$userGender <- renderInfoBox({
       data <- surveydata.filterUser()
-      if(identical(data$Gender, character(0))){
-        g <- "?"
+      if((input$user %in% surveydata$Name) == FALSE){
+        g <- "No info"
       }else{
         g <- data$Gender 
       }
@@ -242,7 +244,11 @@ server <- function(input, output){
     output$userAge <- renderInfoBox({
       data <- surveydata.filterUser()
       infoBox("Age", 
-              data$Age, 
+              if((input$user %in% surveydata$Name) == FALSE){
+                "No info"
+              }else{
+                data$Age
+              }, 
               icon = icon("birthday-cake", lib = "font-awesome"),
               color = "green")
     })
@@ -250,7 +256,11 @@ server <- function(input, output){
     output$userMarriage <- renderInfoBox({
       data <- surveydata.filterUser()
       infoBox("Family Status", 
-              data$`Family status`, 
+              if((input$user %in% surveydata$Name) == FALSE){
+                "No info"
+              }else{
+                data$`Family status`
+              }, 
               icon = icon("heart", lib = "font-awesome"),
               color = "maroon")
     })
