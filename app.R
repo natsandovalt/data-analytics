@@ -8,6 +8,7 @@ library(leaflet)
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
 logs <- read.csv('logs (1).csv', sep = ";")
+logs$User <- gsub("\x8e|\x91l|\x83|\x8f","e",logs$User)
 
 # Title of the header
 header <- dashboardHeader(title = "Data Analytics")
