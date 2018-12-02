@@ -138,7 +138,7 @@ frow.su_week_1 <- fluidRow(
     status = "primary",
     solidHeader = TRUE,
     collapsible = TRUE,
-    plotlyOutput("")
+    plotlyOutput("cigAllWeek")
   )
 )
 
@@ -155,7 +155,8 @@ frow.su_week_2 <- fluidRow(
     status = "primary",
     solidHeader = TRUE,
     collapsible = TRUE,
-    plotlyOutput("")
+    plotlyOutput("cigWeek"),
+    sliderInput("cigWeekSlider", "Week:", 1, 100, 50)
   )
 )
 
@@ -309,6 +310,7 @@ server <- function(input, output, session){
     suFirstWeek <- suWeek[1]
     suLastWeek <- tail(suWeek, n = 1)
     updateSliderInput(session, "cigWeekSlotSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
+    updateSliderInput(session, "cigWeekSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
   })
     
   # valueBoxOutput content
@@ -490,13 +492,13 @@ server <- function(input, output, session){
     
     # >>> SU/week output <<< #
     #Cigarettes per weekday per time slots
-    logs.filterWeek <- reactive({
+    logs.filterCigWeekSlot <- reactive({
       df <- logs.filtered()
-      x <- df %>% filter(week==input$cigWeekSlotSlider)
+      x <- df %>% filter(week==input$cigWeekSlotSlider, Type=='Behaviour' | Type=='Cheated' | Type=='On time')
     })
     
     output$cigWeekSlot <- renderPlotly({
-      df <- logs.filterWeek()
+      df <- logs.filterCigWeekSlot()
       df$h <- with(df, substr(df$OnlyTime, 1, 2))
       #df2 <- ddply(df, .(df$Weekday, df$h), nrow)
       df2 <- df %>% group_by(Weekday, h) %>% summarise(Freq = n())
@@ -505,7 +507,7 @@ server <- function(input, output, session){
       df3$slot <- with(df3, h-h%%2)
       df3$Weekday <- factor(df3$Weekday, daysofweek)
       df4 <- df3 %>% complete(Weekday = factor(df$Weekday, levels = daysofweek), slot = timeSlot, fill = list(Freq = 0))
-      
+
       #ref <- expand.grid(daysofweek, timeSlot)
       #names(ref) <- c("Weekday","h")
       #ref$Freq <- 0
@@ -515,12 +517,31 @@ server <- function(input, output, session){
         layout(xaxis = list(dtick = 2, title = "Time Slot"))
     })
     
-    #might be useful
-    output$cigWeekSlot2 <- renderPlotly({
-      df <- logs.filterWeek()
-      df2 <- count(df, Weekday)
-      df2$Weekday <- factor(df$Weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
-      plot_ly(z = df, x = weekdays, y= seq(0, 24, by = 2), type = "heatmap")
+    #Comparison of cigarettes consumption between weeks
+    output$cigAllWeek <- renderPlotly({
+      df <- logs.filterSmokedAndUser()
+      df2 <- df %>% group_by(week, Weekday) %>% summarise(Freq = n())
+      df3 <- df2 %>% group_by(week) %>% summarise(Freq = mean(Freq))
+      plot_ly(df3, x=df3$week, y=df3$Freq, type = "bar") %>%
+        add_lines(y = ~fitted(loess(df3$Freq ~ df3$week, span=1)),
+                  name = "Loess Smoother", showlegend = FALSE) %>% 
+        layout(xaxis = list(title = "Week", dtick = 1),
+               yaxis = list(title = "Mean cigarettes per weekday"))
+    })
+    
+    #Cigarettes consumption per weekday
+    logs.filterCigWeek <- reactive({
+      df <- logs.filtered()
+      x <- df %>% filter(week==input$cigWeekSlider, Type=='Behaviour' | Type=='Cheated' | Type=='On time')
+    })
+    
+    output$cigWeek <- renderPlotly({
+      df <- logs.filterCigWeek()
+      df2 <- df %>% group_by(Weekday) %>% summarise(Freq = n())
+      df3 <- data.frame(df2)
+      df3$Weekday <- factor(df3$Weekday, daysofweek)
+      df4 <- df3 %>% complete(Weekday = factor(df$Weekday, levels = daysofweek), fill = list(Freq = 0))
+      plot_ly(df4, x=df4$Weekday, y=df4$Freq, type = "bar")
     })
     
     #single user map
