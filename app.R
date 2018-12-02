@@ -148,7 +148,8 @@ frow.su_week_2 <- fluidRow(
     status = "primary",
     solidHeader = TRUE,
     collapsible = TRUE,
-    plotlyOutput("")
+    plotlyOutput("modeWeek"),
+    sliderInput("modeWeekSlider", "Week:", 1, 100, 50)
   ),
   box(
     title = "Cigarettes consumption per weekday",
@@ -311,6 +312,7 @@ server <- function(input, output, session){
     suLastWeek <- tail(suWeek, n = 1)
     updateSliderInput(session, "cigWeekSlotSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
     updateSliderInput(session, "cigWeekSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
+    updateSliderInput(session, "modeWeekSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
   })
     
   # valueBoxOutput content
@@ -527,6 +529,17 @@ server <- function(input, output, session){
                   name = "Loess Smoother", showlegend = FALSE) %>% 
         layout(xaxis = list(title = "Week", dtick = 1),
                yaxis = list(title = "Mean cigarettes per weekday"))
+    })
+    
+    #Mode usage per week
+    logs.filterModeWeek <- reactive({
+      df <- logs.filtered()
+      x <- df %>% filter(week==input$modeWeekSlider)
+    })
+    
+    output$modeWeek <- renderPlotly({
+      logs <- logs.filterModeWeek()
+      plot_ly(logs, labels = logs$Type, type = "pie")
     })
     
     #Cigarettes consumption per weekday
