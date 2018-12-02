@@ -308,6 +308,15 @@ server <- function(input, output, session){
     suLastWeek <- tail(suWeek, n = 1)
     updateSliderInput(session, "cigWeekSlotSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
   })
+  
+  #SU/week slider range
+  observe({
+    df <-logs.filtered()
+    suWeek <- unique(df$week)
+    suFirstWeek <- suWeek[1]
+    suLastWeek <- tail(suWeek, n = 1)
+    updateSliderInput(session, "cigWeekSlotSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
+  })
     
   # valueBoxOutput content
   output$value1 <- renderValueBox({
