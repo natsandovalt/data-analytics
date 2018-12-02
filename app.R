@@ -39,8 +39,10 @@ frow1 <- fluidRow(
 
 frow.au_info_1 <- fluidRow(
   box(
-    tags$b("Cigarettes Saved:"), cigSavedAll, br(),
-    tags$b("Money Saved:"), cigSavedAll,"$", br()
+    tags$b("Total Cigarettes Saved:"), cigSavedAll, br(),
+    tags$b("Total Money Saved:"), cigSavedAll,"$", br(),
+    tags$b("Average Cigarettes Saved:"), avgCigSaved, br(),
+    tags$b("Average Money Saved:"), avgCigSaved,"$", br()
   )
 )
 
@@ -241,6 +243,8 @@ server <- function(input, output){
   userList$cigSaved <- sapply(userList$user, cigSavedEach) #apply function to new row
   cigSavedAll <- sum(userList$cigSaved)
   
+  avgCigSaved <- cigSavedAll/nrow(userList)
+    
   # valueBoxOutput content
   output$value1 <- renderValueBox({
     infoBox(
