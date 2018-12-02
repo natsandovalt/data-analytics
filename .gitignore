@@ -6,3 +6,5 @@ sample_logs\.rds
 \.Rhistory
 
 \.DS_Store
+
+test\.RData
