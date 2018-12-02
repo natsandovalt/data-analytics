@@ -5,6 +5,7 @@ library(dplyr)
 library(plotly)
 library(leaflet)
 library(lubridate)
+library(tidyr)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
@@ -216,7 +217,8 @@ server <- function(input, output, session){
     users <- count(logs, User)
     total_of_users <- nrow(users)
     surveydata_users <- nrow(surveydata)
-    weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    daysofweek <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    timeSlot <- seq(0, 22, by = 2)
     
     #cig saved SU
     userStartDate <- reactive({
@@ -496,12 +498,21 @@ server <- function(input, output, session){
     output$cigWeekSlot <- renderPlotly({
       df <- logs.filterWeek()
       df$h <- with(df, substr(df$OnlyTime, 1, 2))
-      df2 <- ddply(df, .(df$Weekday, df$h), nrow)
-      names(df2) <- c("weekday", "h", "f")
-      m <- spread(df2, h, f)
-      timeSlot <- seq(0, 24, by = 2)
+      #df2 <- ddply(df, .(df$Weekday, df$h), nrow)
+      df2 <- df %>% group_by(Weekday, h) %>% summarise(Freq = n())
+      df3 <- data.frame(df2)
+      df3$h <- as.numeric(as.character(df3$h))
+      df3$slot <- with(df3, h-h%%2)
+      df3$Weekday <- factor(df3$Weekday, daysofweek)
+      df4 <- df3 %>% complete(Weekday = factor(df$Weekday, levels = daysofweek), slot = timeSlot, fill = list(Freq = 0))
       
-      plot_ly(z = m, type = "heatmap")
+      #ref <- expand.grid(daysofweek, timeSlot)
+      #names(ref) <- c("Weekday","h")
+      #ref$Freq <- 0
+      #m <- spread(df2, h, Freq, fill = 0)
+      
+      plot_ly(df4, x=df4$slot, y=df4$Weekday, z=df4$Freq, type = "heatmap") %>% 
+        layout(xaxis = list(dtick = 2, title = "Time Slot"))
     })
     
     #might be useful
