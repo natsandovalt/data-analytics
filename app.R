@@ -16,11 +16,13 @@ header <- dashboardHeader(title = "Data Analytics")
 
 # Sidebar content
 sidebar <- dashboardSidebar(
-    sidebarMenu(
-        menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome")),
-        #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
-        #,
-        menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
+  sidebarMenu(
+    menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome"),
+             menuSubItem("Information", tabName = "au_info", icon = icon("info", lib = "font-awesome")),
+             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome"))),
+    #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
+    #,
+    menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
                  selectInput("user", "User:", width = 300, choices=unique(logs$User)),
                  menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
                  menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
@@ -32,12 +34,19 @@ sidebar <- dashboardSidebar(
 frow1 <- fluidRow(
     valueBoxOutput("value1"),
     valueBoxOutput("value2"),
-    valueBoxOutput("value3")
+  valueBoxOutput("value3")
+)
+
+frow.au_info_1 <- fluidRow(
+  box(
+    tags$b("Cigarettes Saved:"), cigSavedAll, br(),
+    tags$b("Money Saved:"), cigSavedAll,"$", br()
+  )
 )
 
 frow2 <- fluidRow(
-    box(
-        title = "Age groups by gender",
+  box(
+    title = "Age groups by gender",
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
@@ -126,6 +135,7 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2, frow3),
+    tabItem(tabName = "au_info", frow.au_info_1),
     tabItem(tabName = "su_info", frow.su_info_1, frow.su_info_2),
     tabItem(tabName = "singleUser", frow21, frow22),
     tabItem(tabName = "map", frow.map)
@@ -204,12 +214,42 @@ server <- function(input, output){
         group_by(week) %>%
         summarise(all = n(),consumed = sum(Type=='Cheated' | Type=='On time'))
       df$saved <- with(df, behaviorConsumption - df$consumed)
-      sum(df$saved)
-    })
-    
-    # valueBoxOutput content
-    output$value1 <- renderValueBox({
-        infoBox(
+    sum(df$saved)
+  })
+  
+  #cig saved AU
+  logs.filtered.each <- function(name){
+    x <- logs %>% filter(User==name)
+  }
+  
+  countRow <- function(user) {
+    count(logs.filter(user))$n[1]
+  }
+  
+  cigSavedEach <- function(user) {
+    df <- logs.filter(user) #filterd logs df
+    userStartDate <- df$dateFormatted[1] #date
+    userBehaviorWeek <- with(df, df[(dateFormatted <= userStartDate + 7), ]) #first week df
+    userOtherWeek <- with(df, df[(dateFormatted > userStartDate + 7), ]) #other weeks df
+    df2 <- userBehaviorWeek %>% filter(Type=='Behaviour')
+    data <- count(df2)
+    userBehaviorWeek.consumed <- data$n[1] #single value
+    userOtherWeek.consumed <- userOtherWeek %>%
+      group_by(week) %>%
+      summarise(all = n(),consumed = sum(Type=='Cheated' | Type=='On time')) #df with count column
+    df3 <- userOtherWeek.consumed
+    df3$saved <- with(df3, userBehaviorWeek.consumed - df3$consumed)
+    sum(df3$saved)
+  }
+  
+  userList <- data.frame(unique(logs$User))
+  colnames(userList) <- "user"
+  userList$cigSaved <- sapply(userList$user, cigSavedEach) #apply function to new row
+  cigSavedAll <- sum(userList$cigSaved)
+  
+  # valueBoxOutput content
+  output$value1 <- renderValueBox({
+    infoBox(
             "Top mode",
             ordered$Type[1],
             icon = icon("list-ol", lib = "font-awesome"),
