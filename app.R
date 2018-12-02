@@ -39,10 +39,10 @@ frow1 <- fluidRow(
 
 frow.au_info_1 <- fluidRow(
   box(
-    tags$b("Total Cigarettes Saved:"), cigSavedAll, br(),
-    tags$b("Total Money Saved:"), cigSavedAll,"$", br(),
-    tags$b("Average Cigarettes Saved:"), avgCigSaved, br(),
-    tags$b("Average Money Saved:"), avgCigSaved,"$", br()
+    tags$b("Total Cigarettes Saved:"), textOutput("cigSavedAll", inline = TRUE), br(),
+    tags$b("Total Money Saved:"), textOutput("moneySavedAll", inline = TRUE), br(),
+    tags$b("Average Cigarettes Saved:"), textOutput("avgCigSaved", inline = TRUE), br(),
+    tags$b("Average Money Saved:"), textOutput("avgMoneySaved", inline = TRUE), br()
   )
 )
 
@@ -223,7 +223,7 @@ server <- function(input, output){
   }
   
   cigSavedEach <- function(user) {
-    df <- logs.filter(user) #filterd logs df
+    df <- logs.filtered.each(user) #filterd logs df
     userStartDate <- df$dateFormatted[1] #date
     userBehaviorWeek <- with(df, df[(dateFormatted <= userStartDate + 7), ]) #first week df
     userOtherWeek <- with(df, df[(dateFormatted > userStartDate + 7), ]) #other weeks df
@@ -244,6 +244,23 @@ server <- function(input, output){
   cigSavedAll <- sum(userList$cigSaved)
   
   avgCigSaved <- cigSavedAll/nrow(userList)
+  
+  #AU/info output
+  output$cigSavedAll <- renderText({
+    cigSavedAll
+  })
+  
+  output$moneySavedAll <- renderText({
+    paste(cigSavedAll,"$")
+  })
+  
+  output$avgCigSaved <- renderText({
+    avgCigSaved
+  })
+  
+  output$avgMoneySaved <- renderText({
+    paste(avgCigSaved,"$")
+  })
     
   # valueBoxOutput content
   output$value1 <- renderValueBox({
