@@ -168,6 +168,7 @@ server <- function(input, output){
     total_of_users <- nrow(users)
     surveydata_users <- nrow(surveydata)
     
+    #cig saved SU
     userStartDate <- reactive({
       df <- logs.filtered()
       x <- df$dateFormatted[1]
@@ -189,14 +190,7 @@ server <- function(input, output){
       data <- count(df)
       x <- data$n[1]
     })
-    
-    userOtherWeek.consumed <- reactive({ #return a df
-      df <- userOtherWeek()
-      x <- userOtherWeek %>%
-        group_by(week) %>%
-        summarise(all = n(),consumed = sum(userOtherWeek$Type=='Cheated' | userOtherWeek$Type=='On time'))
-    })
-    
+
     cigSaved <- reactive({
       behaviorConsumption <- userBehaviorWeek.consumed()
       df <- userOtherWeek()
