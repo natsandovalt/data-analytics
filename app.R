@@ -93,7 +93,11 @@ frow.su_info_2 <- fluidRow(
   box(
     tags$b("Age Category:"), textOutput("ageCat", inline = TRUE), br(),
     tags$b("Cigarettes Saved:"), textOutput("cigSaved", inline = TRUE), br(),
-    tags$b("Money Saved:"), textOutput("moneySaved", inline = TRUE), br()
+    tags$b("Money Saved:"), textOutput("moneySaved", inline = TRUE), br(),
+    tags$b("Mean of consumed cigarettes:"), textOutput("avgCigPerDay", inline = TRUE), br(),
+    tags$b("Mean of consumed cigarettes in weekdays:"), textOutput("avgCigWeekday", inline = TRUE), br(),
+    tags$b("Mean of consumed cigarettes in weekends:"), textOutput("avgCigWeekend", inline = TRUE), br(),
+    tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br()
   )
 )
 
@@ -284,6 +288,45 @@ server <- function(input, output, session){
     sum(df$saved)
   })
   
+    avgCigPerDay <- reactive({
+      df <- logs.filtered()
+      df <- df %>%
+        group_by(dateFormatted) %>%
+        summarise(consumed = sum(Type=='Cheated' | Type=='On time' | Type=='Behaviour'))
+      sum(df$consumed)/nrow(df)
+    })
+    
+    avgCigWeekday <- reactive({
+      df <- logs.filtered()
+      df <- df %>%
+        group_by(dateFormatted) %>%
+        filter(Weekday=='Monday' | Weekday=='Tuesday' | Weekday=='Wednesday' | Weekday=='Thursday' | Weekday=='Friday') %>%
+        summarise(consumed = sum(Type=='Cheated' | Type=='On time' | Type=='Behaviour'))
+      sum(df$consumed)/nrow(df)
+    })
+    
+    avgCigWeekend <- reactive({
+      df <- logs.filtered()
+      df <- df %>%
+        group_by(dateFormatted) %>%
+        filter(Weekday=='Saturday' | Weekday=='Sunday') %>%
+        summarise(consumed = sum(Type=='Cheated' | Type=='On time' | Type=='Behaviour'))
+      sum(df$consumed)/nrow(df)
+    })
+    
+    peakTimeSlot <- reactive({
+      df <- logs.filterSmokedAndUser()
+      df$h <- with(df, substr(df$OnlyTime, 1, 2))
+
+      df2 <- data.frame(df)
+      df2$h <- as.numeric(as.character(df2$h))
+      df2$slot <- with(df2, h-h%%2)
+      
+      df3 <- df2 %>% group_by(slot) %>% summarise(f = n())
+      df4 <- df3[order(-df3$f),]
+      df4$slot[1]
+    })
+  
   #cig saved AU
   logs.filtered.each <- function(name){
     x <- logs %>% filter(User==name)
@@ -454,7 +497,7 @@ server <- function(input, output, session){
               color = "maroon")
     })
     
-    #More single user info
+    #SU/info output
     ageCategory <- function(a){
       if(a < 30){
         "Young"
@@ -480,6 +523,24 @@ server <- function(input, output, session){
     
     output$moneySaved <- renderText({
       paste(cigSaved(),"$")
+    })
+    
+    output$avgCigPerDay <- renderText({
+      avgCigPerDay()
+    })
+    
+    output$avgCigWeekday <- renderText({
+      avgCigWeekday()
+    })
+    
+    output$avgCigWeekend <- renderText({
+      avgCigWeekend()
+    })
+    
+    output$peakTimeSlot <- renderText({
+      a <- as.numeric(peakTimeSlot())
+      b <- a+2
+      paste(a, ":00 - ", b, ":00", sep = "")
     })
     
     #Total number of each mode
