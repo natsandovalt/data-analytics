@@ -28,6 +28,7 @@ sidebar <- dashboardSidebar(
              menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
              menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
              menuSubItem("Week", tabName = "su_week", icon = icon("calendar", lib = "font-awesome")),
+             menuSubItem("All Days", tabName = "su_all", icon = icon("calendar-o", lib = "font-awesome")),
              menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
         )
     )
@@ -161,6 +162,28 @@ frow.su_week_2 <- fluidRow(
   )
 )
 
+frow.su_all_1 <- fluidRow(
+  box(
+    title = "Cigarettes consumption over all period",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("allUsage"),
+    width = 12
+  )
+)
+
+frow.su_all_2 <- fluidRow(
+  box(
+    title = "Mode usage over all period",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("allModeUsage"),
+    width = 12
+  )
+)
+
 frow.map <- fluidRow(
   box(
     title = "Location history",
@@ -180,6 +203,7 @@ body <- dashboardBody(
     tabItem(tabName = "su_info", frow.su_info_1, frow.su_info_2),
     tabItem(tabName = "singleUser", frow21, frow22),
     tabItem(tabName = "su_week", frow.su_week_1, frow.su_week_2),
+    tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map)
   )
 )
@@ -221,6 +245,11 @@ server <- function(input, output, session){
     surveydata_users <- nrow(surveydata)
     daysofweek <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
     timeSlot <- seq(0, 22, by = 2)
+    
+    userEndDate <- reactive({
+      df <- logs.filtered()
+      x <- tail(df$dateFormatted, n = 1)
+    })
     
     #cig saved SU
     userStartDate <- reactive({
@@ -555,6 +584,27 @@ server <- function(input, output, session){
       df3$Weekday <- factor(df3$Weekday, daysofweek)
       df4 <- df3 %>% complete(Weekday = factor(df$Weekday, levels = daysofweek), fill = list(Freq = 0))
       plot_ly(df4, x=df4$Weekday, y=df4$Freq, type = "bar")
+    })
+    
+    # >>> SU/all output <<< #
+    #usage by time
+    output$allUsage <- renderPlotly({
+      logs <- logs.filtered()
+      df <- logs %>% group_by(dateFormatted) %>% summarise(f = n()) %>% ungroup(df)
+      plot_ly(df, x = ~dateFormatted, y = df$f, type = 'scatter', mode = 'lines') %>%
+        layout(xaxis = list(title = 'Date'),
+               yaxis = list(title = 'Number of uses'))
+    })
+    
+    #mode usage by time
+    output$allModeUsage <- renderPlotly({
+      logs <- logs.filtered()
+      df <- logs %>% group_by(dateFormatted, Type) %>% summarise(f = n()) %>% ungroup(df)
+      range <- seq(userStartDate(), userEndDate(), "days")
+      df <- df %>% complete(dateFormatted =  range, nesting(Type), fill = list(f = 0))
+      plot_ly(df, x = ~dateFormatted, y = df$f, type = 'scatter', mode = 'lines', split = df$Type) %>%
+        layout(xaxis = list(title = 'Date'),
+               yaxis = list(title = 'Number of uses'))
     })
     
     #single user map
