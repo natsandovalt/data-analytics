@@ -5,6 +5,7 @@ library(dplyr)
 library(plotly)
 library(leaflet)
 library(lubridate)
+library(tidyr)
 
 recommendation <- read.csv('recommendation.csv', stringsAsFactors = F, header = T)
 surveydata <- readxl::read_xlsx('surveydataece (1).xlsx')
@@ -16,15 +17,19 @@ header <- dashboardHeader(title = "Data Analytics")
 
 # Sidebar content
 sidebar <- dashboardSidebar(
-    sidebarMenu(
-        menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome")),
-        #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
-        #,
-        menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
-                 selectInput("user", "User:", width = 300, choices=unique(logs$User)),
-                 menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
-                 menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
-                 menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
+  sidebarMenu(
+    menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome"),
+             menuSubItem("Information", tabName = "au_info", icon = icon("info", lib = "font-awesome")),
+             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome"))),
+    #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
+    #,
+    menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
+             selectInput("user", "User:", width = 300, choices=unique(logs$User)),
+             menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
+             menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
+             menuSubItem("Week", tabName = "su_week", icon = icon("calendar", lib = "font-awesome")),
+             menuSubItem("All Days", tabName = "su_all", icon = icon("calendar-o", lib = "font-awesome")),
+             menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
         )
     )
 )
@@ -32,12 +37,21 @@ sidebar <- dashboardSidebar(
 frow1 <- fluidRow(
     valueBoxOutput("value1"),
     valueBoxOutput("value2"),
-    valueBoxOutput("value3")
+  valueBoxOutput("value3")
+)
+
+frow.au_info_1 <- fluidRow(
+  box(
+    tags$b("Total Cigarettes Saved:"), textOutput("cigSavedAll", inline = TRUE), br(),
+    tags$b("Total Money Saved:"), textOutput("moneySavedAll", inline = TRUE), br(),
+    tags$b("Average Cigarettes Saved:"), textOutput("avgCigSaved", inline = TRUE), br(),
+    tags$b("Average Money Saved:"), textOutput("avgMoneySaved", inline = TRUE), br()
+  )
 )
 
 frow2 <- fluidRow(
-    box(
-        title = "Age groups by gender",
+  box(
+    title = "Age groups by gender",
         status = "primary",
         solidHeader = TRUE,
         collapsible = TRUE,
@@ -111,6 +125,65 @@ frow22 <- fluidRow(
   )
 )
 
+frow.su_week_1 <- fluidRow(
+  box(
+    title = "Cigarettes per weekday per time slots",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("cigWeekSlot"),
+    sliderInput("cigWeekSlotSlider", "Week:", 1, 100, 50)
+  ),
+  box(
+    title = "Comparison of cigarettes consumption between weeks",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("cigAllWeek")
+  )
+)
+
+frow.su_week_2 <- fluidRow(
+  box(
+    title = "Mode usage per week",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("modeWeek"),
+    sliderInput("modeWeekSlider", "Week:", 1, 100, 50)
+  ),
+  box(
+    title = "Cigarettes consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("cigWeek"),
+    sliderInput("cigWeekSlider", "Week:", 1, 100, 50)
+  )
+)
+
+frow.su_all_1 <- fluidRow(
+  box(
+    title = "Cigarettes consumption over all period",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("allUsage"),
+    width = 12
+  )
+)
+
+frow.su_all_2 <- fluidRow(
+  box(
+    title = "Mode usage over all period",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("allModeUsage"),
+    width = 12
+  )
+)
+
 frow.map <- fluidRow(
   box(
     title = "Location history",
@@ -126,8 +199,11 @@ frow.map <- fluidRow(
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2, frow3),
+    tabItem(tabName = "au_info", frow.au_info_1),
     tabItem(tabName = "su_info", frow.su_info_1, frow.su_info_2),
     tabItem(tabName = "singleUser", frow21, frow22),
+    tabItem(tabName = "su_week", frow.su_week_1, frow.su_week_2),
+    tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map)
   )
 )
@@ -135,7 +211,7 @@ body <- dashboardBody(
 ui <- dashboardPage(title = "Project", header, sidebar, body, skin = 'red')
 
 # Server
-server <- function(input, output){
+server <- function(input, output, session){
     total.revenue <- sum(recommendation$Revenue)
     sales.account <- recommendation %>% group_by(Account) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
     prof.prod <- recommendation %>% group_by(Product) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
@@ -167,6 +243,13 @@ server <- function(input, output){
     users <- count(logs, User)
     total_of_users <- nrow(users)
     surveydata_users <- nrow(surveydata)
+    daysofweek <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    timeSlot <- seq(0, 22, by = 2)
+    
+    userEndDate <- reactive({
+      df <- logs.filtered()
+      x <- tail(df$dateFormatted, n = 1)
+    })
     
     #cig saved SU
     userStartDate <- reactive({
@@ -198,12 +281,72 @@ server <- function(input, output){
         group_by(week) %>%
         summarise(all = n(),consumed = sum(Type=='Cheated' | Type=='On time'))
       df$saved <- with(df, behaviorConsumption - df$consumed)
-      sum(df$saved)
-    })
+    sum(df$saved)
+  })
+  
+  #cig saved AU
+  logs.filtered.each <- function(name){
+    x <- logs %>% filter(User==name)
+  }
+  
+  countRow <- function(user) {
+    count(logs.filter(user))$n[1]
+  }
+  
+  cigSavedEach <- function(user) {
+    df <- logs.filtered.each(user) #filterd logs df
+    userStartDate <- df$dateFormatted[1] #date
+    userBehaviorWeek <- with(df, df[(dateFormatted <= userStartDate + 7), ]) #first week df
+    userOtherWeek <- with(df, df[(dateFormatted > userStartDate + 7), ]) #other weeks df
+    df2 <- userBehaviorWeek %>% filter(Type=='Behaviour')
+    data <- count(df2)
+    userBehaviorWeek.consumed <- data$n[1] #single value
+    userOtherWeek.consumed <- userOtherWeek %>%
+      group_by(week) %>%
+      summarise(all = n(),consumed = sum(Type=='Cheated' | Type=='On time')) #df with count column
+    df3 <- userOtherWeek.consumed
+    df3$saved <- with(df3, userBehaviorWeek.consumed - df3$consumed)
+    sum(df3$saved)
+  }
+  
+  userList <- data.frame(unique(logs$User))
+  colnames(userList) <- "user"
+  userList$cigSaved <- sapply(userList$user, cigSavedEach) #apply function to new row
+  cigSavedAll <- sum(userList$cigSaved)
+  
+  avgCigSaved <- cigSavedAll/nrow(userList)
+  
+  #AU/info output
+  output$cigSavedAll <- renderText({
+    cigSavedAll
+  })
+  
+  output$moneySavedAll <- renderText({
+    paste(cigSavedAll,"$")
+  })
+  
+  output$avgCigSaved <- renderText({
+    avgCigSaved
+  })
+  
+  output$avgMoneySaved <- renderText({
+    paste(avgCigSaved,"$")
+  })
+  
+  #SU/week slider range
+  observe({
+    df <-logs.filtered()
+    suWeek <- unique(df$week)
+    suFirstWeek <- suWeek[1]
+    suLastWeek <- tail(suWeek, n = 1)
+    updateSliderInput(session, "cigWeekSlotSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
+    updateSliderInput(session, "cigWeekSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
+    updateSliderInput(session, "modeWeekSlider", min = suFirstWeek, max = suLastWeek, value = suFirstWeek)
+  })
     
-    # valueBoxOutput content
-    output$value1 <- renderValueBox({
-        infoBox(
+  # valueBoxOutput content
+  output$value1 <- renderValueBox({
+    infoBox(
             "Top mode",
             ordered$Type[1],
             icon = icon("list-ol", lib = "font-awesome"),
@@ -376,6 +519,92 @@ server <- function(input, output){
       df$plotlydate <- format(df$newdate, "%Y-%m-%d")
       df <- df[order(as.Date(df$plotlydate, format = "%Y-%m-%d")),]
       plot_ly(df, x = df$plotlydate, y = df$n, type = 'scatter', mode = 'lines')
+    })
+    
+    # >>> SU/week output <<< #
+    #Cigarettes per weekday per time slots
+    logs.filterCigWeekSlot <- reactive({
+      df <- logs.filtered()
+      x <- df %>% filter(week==input$cigWeekSlotSlider, Type=='Behaviour' | Type=='Cheated' | Type=='On time')
+    })
+    
+    output$cigWeekSlot <- renderPlotly({
+      df <- logs.filterCigWeekSlot()
+      df$h <- with(df, substr(df$OnlyTime, 1, 2))
+      #df2 <- ddply(df, .(df$Weekday, df$h), nrow)
+      df2 <- df %>% group_by(Weekday, h) %>% summarise(Freq = n())
+      df3 <- data.frame(df2)
+      df3$h <- as.numeric(as.character(df3$h))
+      df3$slot <- with(df3, h-h%%2)
+      df3$Weekday <- factor(df3$Weekday, daysofweek)
+      df4 <- df3 %>% complete(Weekday = factor(df$Weekday, levels = daysofweek), slot = timeSlot, fill = list(Freq = 0))
+
+      #ref <- expand.grid(daysofweek, timeSlot)
+      #names(ref) <- c("Weekday","h")
+      #ref$Freq <- 0
+      #m <- spread(df2, h, Freq, fill = 0)
+      
+      plot_ly(df4, x=df4$slot, y=df4$Weekday, z=df4$Freq, type = "heatmap") %>% 
+        layout(xaxis = list(dtick = 2, title = "Time Slot"))
+    })
+    
+    #Comparison of cigarettes consumption between weeks
+    output$cigAllWeek <- renderPlotly({
+      df <- logs.filterSmokedAndUser()
+      df2 <- df %>% group_by(week, Weekday) %>% summarise(Freq = n())
+      df3 <- df2 %>% group_by(week) %>% summarise(Freq = mean(Freq))
+      plot_ly(df3, x=df3$week, y=df3$Freq, type = "bar") %>%
+        add_lines(y = ~fitted(loess(df3$Freq ~ df3$week, span=1)),
+                  name = "Loess Smoother", showlegend = FALSE) %>% 
+        layout(xaxis = list(title = "Week", dtick = 1),
+               yaxis = list(title = "Mean cigarettes per weekday"))
+    })
+    
+    #Mode usage per week
+    logs.filterModeWeek <- reactive({
+      df <- logs.filtered()
+      x <- df %>% filter(week==input$modeWeekSlider)
+    })
+    
+    output$modeWeek <- renderPlotly({
+      logs <- logs.filterModeWeek()
+      plot_ly(logs, labels = logs$Type, type = "pie")
+    })
+    
+    #Cigarettes consumption per weekday
+    logs.filterCigWeek <- reactive({
+      df <- logs.filtered()
+      x <- df %>% filter(week==input$cigWeekSlider, Type=='Behaviour' | Type=='Cheated' | Type=='On time')
+    })
+    
+    output$cigWeek <- renderPlotly({
+      df <- logs.filterCigWeek()
+      df2 <- df %>% group_by(Weekday) %>% summarise(Freq = n())
+      df3 <- data.frame(df2)
+      df3$Weekday <- factor(df3$Weekday, daysofweek)
+      df4 <- df3 %>% complete(Weekday = factor(df$Weekday, levels = daysofweek), fill = list(Freq = 0))
+      plot_ly(df4, x=df4$Weekday, y=df4$Freq, type = "bar")
+    })
+    
+    # >>> SU/all output <<< #
+    #usage by time
+    output$allUsage <- renderPlotly({
+      logs <- logs.filtered()
+      df <- logs %>% group_by(dateFormatted) %>% summarise(f = n()) %>% ungroup(df)
+      plot_ly(df, x = ~dateFormatted, y = df$f, type = 'scatter', mode = 'lines') %>%
+        layout(xaxis = list(title = 'Date'),
+               yaxis = list(title = 'Number of uses'))
+    })
+    
+    #mode usage by time
+    output$allModeUsage <- renderPlotly({
+      logs <- logs.filtered()
+      df <- logs %>% group_by(dateFormatted, Type) %>% summarise(f = n()) %>% ungroup(df)
+      range <- seq(userStartDate(), userEndDate(), "days")
+      df <- df %>% complete(dateFormatted =  range, nesting(Type), fill = list(f = 0))
+      plot_ly(df, x = ~dateFormatted, y = df$f, type = 'scatter', mode = 'lines', split = df$Type) %>%
+        layout(xaxis = list(title = 'Date'),
+               yaxis = list(title = 'Number of uses'))
     })
     
     #single user map
