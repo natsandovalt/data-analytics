@@ -22,7 +22,8 @@ sidebar <- dashboardSidebar(
         menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
                  selectInput("user", "User:", width = 300, choices=unique(logs$User)),
                  menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
-                 menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome"))
+                 menuSubItem("Map", tabName = "map", icon = icon("map", lib = "font-awesome")),
+                 menuSubItem("Classic", tabName = "singleClassic", icon = icon("eye", lib = "font-awesome"))
         )
     )
 )
@@ -111,13 +112,25 @@ frow.map <- fluidRow(
     leafletOutput("mymap",height = 600)
   )
 )
+
+frowc1 <- fluidRow(
+  box(
+    title = "Cigarettes consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("consumptionWeekday")
+  )
+)
+
 # Construct the body
 
 body <- dashboardBody(
   tabItems(
     tabItem(tabName = "allUsers", frow1, frow2, frow3),
     tabItem(tabName = "singleUser", frow20, frow21, frow22),
-    tabItem(tabName = "map", frow.map)
+    tabItem(tabName = "map", frow.map),
+    tabItem(tabName = "singleClassic", frowc1)
   )
 )
 
@@ -143,6 +156,11 @@ server <- function(input, output){
     surveydata.filterUser <- reactive({
       x <- surveydata %>% filter(Name==input$user)
     })
+    logs.consumptionWeekday <- reactive({
+      x <- logs %>% filter(User==input$user, Type=='Cheated' | Type=='On time')
+    })
+    # Set language to enlgish (for weekdays)
+    Sys.setlocale("LC_TIME","English")
     pickup_date <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%d/%m/%Y")
     pickup_time <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%H:%M")
     logs$Date <- pickup_date
@@ -264,6 +282,14 @@ server <- function(input, output){
     #Total number of each mode all users
     output$totalByTypeAll <- renderPlotly({
       plot_ly(logs, labels = logs$Type, type = "pie")
+    })
+
+    #cigarette consumption per weekday
+    output$consumptionWeekday <- renderPlotly({
+      logs <- logs.consumptionWeekday()
+      df <- count(logs, Weekday)
+      df$Weekday <- factor(df$Weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+      plot_ly(data = df, x = df$Weekday, y = df$n, type = 'bar')
     })
 
     #cigarette consumption per weekday
