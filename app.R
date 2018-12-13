@@ -227,6 +227,17 @@ frowc2 <- fluidRow(
   )
 )
 
+frowc3 <- fluidRow(
+  box(
+    width = 12,
+    title = "Rate of progress",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("rateProgress")
+  )
+)
+
 frowe1 <- fluidRow(
   box(
     width=12,
@@ -260,7 +271,7 @@ body <- dashboardBody(
     tabItem(tabName = "su_week", frow.su_week_1, frow.su_week_2),
     tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map),
-    tabItem(tabName = "singleClassic", frowc1, frowc2),
+    tabItem(tabName = "singleClassic", frowc1, frowc2, frowc3),
     tabItem(tabName = "singleEngagement", frowe1, frowe2)
   )
 )
@@ -610,7 +621,7 @@ server <- function(input, output, session){
       p <- plot_ly(df, x = ~Week, y = ~Engagement, type = 'scatter', mode = 'lines')
     })
 
-    output$userProgress <- renderPlotly({
+    getProgress <- reactive({
       user <- logs %>% filter(User==input$user)
       dates <- user$dateFormatted
       week <- as.numeric(dates-dates[1]) %/% 7
@@ -668,7 +679,34 @@ server <- function(input, output, session){
           df <- rbind(df, temp)
         }
       }
+      df
+    })
+
+    output$userProgress <- renderPlotly({
+      df <- getProgress()
       p <- plot_ly(df, x = ~Week, y = ~Progress, type = 'scatter', mode = 'lines')
+    })
+
+    output$rateProgress <- renderPlotly({
+      progress <- getProgress()
+      weeks <- progress$Week
+      weeks <- weeks[-1]
+      df <- data.frame(Week=integer(), Rate=double())
+      for(value in weeks){
+        prev_week <- progress %>% filter(Week == (value - 1))
+        prev_week <- prev_week$Progress
+        act_week <- progress %>% filter(Week == value)
+        act_week <- act_week$Progress
+        if(prev_week == 0){
+          prev_week <- progress %>% filter(Week == (value - 2))
+          prev_week <- prev_week$Progress
+        }
+        rate <- (act_week - prev_week) / abs(prev_week)
+        temp <- data.frame(value, rate)
+        names(temp) <- c("Week", "Rate")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Week, y = ~Rate, type = 'scatter', mode = 'lines')
     })
     
     #single user valueBoxOutput content
