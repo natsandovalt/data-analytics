@@ -20,7 +20,8 @@ sidebar <- dashboardSidebar(
   sidebarMenu(
     menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome"),
              menuSubItem("Information", tabName = "au_info", icon = icon("info", lib = "font-awesome")),
-             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome"))
+             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome")),
+             menuSubItem("Classic", tabName = "allClassic", icon = icon("eye", lib = "font-awesome"))
              ),
     menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
              selectInput("user", "User:", width = 300, choices=unique(logs$User)),
@@ -231,6 +232,27 @@ frowc2 <- fluidRow(
   )
 )
 
+frowc3 <- fluidRow(
+  box(
+    width = 12,
+    title = "Rate of progress",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("rateProgress")
+  )
+)
+
+frowc4 <- fluidRow(
+  box(
+    title = "Mean and std cigarrete consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("meanAndStdAll")
+  )
+)
+
 frowe1 <- fluidRow(
   box(
     width=12,
@@ -264,8 +286,9 @@ body <- dashboardBody(
     tabItem(tabName = "su_week", frow.su_week_1, frow.su_week_2),
     tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map),
-    tabItem(tabName = "singleClassic", frowc1, frowc2),
-    tabItem(tabName = "singleEngagement", frowe1, frowe2)
+    tabItem(tabName = "singleClassic", frowc1, frowc2, frowc3),
+    tabItem(tabName = "singleEngagement", frowe1, frowe2),
+    tabItem(tabName = "allClassic", frowc4)
   )
 )
 
@@ -727,6 +750,37 @@ server <- function(input, output, session){
       p <- plot_ly(df, x = ~Weekday, y = ~Mean, type = 'bar', error_y = ~list(array = Std, color = '#000000'))
     })
 
+    output$meanAndStdAll <- renderPlotly({
+      consumption <- logs %>% filter(Type=="Cheated" | Type== "On Time" | Type=="Behaviour")
+      consumption_weekdays <- count(consumption, Weekday, Type)
+      weekdays <- unique(consumption_weekdays$Weekday)
+      # Data frame to plot the mean and std for each weekday
+      df <- data.frame(Weekday=character(), Mean=double(), Std=double())
+      for(value in weekdays){
+        day <- consumption_weekdays %>% filter(Weekday==value)
+        rows <- nrow(day)
+        if(rows == 1){
+          dummy <- data.frame(value, "Dummy1", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+
+          dummy <- data.frame(value, "Dummy2", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+        } else if (rows == 2){
+          dummy <- data.frame(value, "Dummy", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+        }
+        mean <- mean(day$n)
+        std <- sd(day$n)
+        temp <- data.frame(value, mean, std)
+        names(temp) <- c("Weekday", "Mean", "Std")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Weekday, y = ~Mean, type = 'bar', error_y = ~list(array = Std, color = '#000000'))
+    })
+
     output$engagementPerDay <- renderPlotly({
       user <- logs %>% filter(User==input$user)
       user_dates <- unique(user$dateFormatted)
@@ -770,7 +824,7 @@ server <- function(input, output, session){
       p <- plot_ly(df, x = ~Week, y = ~Engagement, type = 'scatter', mode = 'lines')
     })
 
-    output$userProgress <- renderPlotly({
+    getProgress <- reactive({
       user <- logs %>% filter(User==input$user)
       dates <- user$dateFormatted
       week <- as.numeric(dates-dates[1]) %/% 7
@@ -828,7 +882,34 @@ server <- function(input, output, session){
           df <- rbind(df, temp)
         }
       }
+      df
+    })
+
+    output$userProgress <- renderPlotly({
+      df <- getProgress()
       p <- plot_ly(df, x = ~Week, y = ~Progress, type = 'scatter', mode = 'lines')
+    })
+
+    output$rateProgress <- renderPlotly({
+      progress <- getProgress()
+      weeks <- progress$Week
+      weeks <- weeks[-1]
+      df <- data.frame(Week=integer(), Rate=double())
+      for(value in weeks){
+        prev_week <- progress %>% filter(Week == (value - 1))
+        prev_week <- prev_week$Progress
+        act_week <- progress %>% filter(Week == value)
+        act_week <- act_week$Progress
+        if(prev_week == 0){
+          prev_week <- progress %>% filter(Week == (value - 2))
+          prev_week <- prev_week$Progress
+        }
+        rate <- (act_week - prev_week) / abs(prev_week)
+        temp <- data.frame(value, rate)
+        names(temp) <- c("Week", "Rate")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Week, y = ~Rate, type = 'scatter', mode = 'lines')
     })
     
     #single user valueBoxOutput content
