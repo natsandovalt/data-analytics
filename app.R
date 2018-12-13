@@ -227,6 +227,17 @@ frowe1 <- fluidRow(
   )
 )
 
+frowe2 <- fluidRow(
+  box(
+    width=12,
+    title = "Engagement per week",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("engagementPerWeek")
+  )
+)
+
 # Construct the body
 
 body <- dashboardBody(
@@ -239,7 +250,7 @@ body <- dashboardBody(
     tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map),
     tabItem(tabName = "singleClassic", frowc1),
-    tabItem(tabName = "singleEngagement", frowe1)
+    tabItem(tabName = "singleEngagement", frowe1, frowe2)
   )
 )
 
@@ -352,21 +363,33 @@ server <- function(input, output, session){
     totalConsumption <- reactive({
       logs <- logs.consumptionWeekday()
       df <- count(logs, Weekday)
-      sum(df[2])
+      if(nrow(df) == 0){
+        0
+      }else{
+        sum(df[2])
+      }
     })
 
     weekdayConsumption <- reactive({
       logs <- logs.consumptionWeekday()
       df <- count(logs, Weekday)
       consumption_weekdays.data <- subset(df, Weekday == "Monday" | Weekday == "Tuesday" | Weekday == "Wednesday" | Weekday == "Thursday" | Weekday == "Friday", select = c("Weekday", "n"))
-      sum(consumption_weekdays.data[2])
+      if(nrow(consumption_weekdays.data) == 0){
+        0
+      }else{
+        sum(consumption_weekdays.data[2])
+      }
     })
 
     weekendConsumption <- reactive({
       logs <- logs.consumptionWeekday()
       df <- count(logs, Weekday)
       consumption_weekends.data <- subset(df, Weekday == "Saturday" | Weekday == "Sunday", select = c("Weekday", "n"))
-      sum(consumption_weekends.data[2])
+      if(nrow(consumption_weekends.data) == 0){
+        0
+      }else{
+        sum(consumption_weekends.data[2])
+      }
     })
 
     lastSevenDays <- reactive({
@@ -581,6 +604,28 @@ server <- function(input, output, session){
         cont <- cont + 1
       }
       p <- plot_ly(df, x = ~Day, y = ~Engagement, type = 'scatter', mode = 'lines')
+    })
+
+    output$engagementPerWeek <- renderPlotly({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(week)
+      # Data frame to plot the engagement of each week
+      df <- data.frame(Week=integer(), Engagement=double())
+      for(value in weeks){
+        auto_skipped <- user %>% filter(userDate==value, Type=="Auto skipped")
+        auto_skipped <- count(auto_skipped)$n
+        other_types <- user %>% filter(userDate==value, Type=="Auto skipped" | Type=="Skipped" | Type=="On Time" | Type=="Snoozed")
+        other_types <- count(other_types)$n
+        engagement <- 1 - (auto_skipped/other_types)
+        engagement <- engagement * 100
+        temp <- data.frame(value, engagement)
+        names(temp) <- c("Week", "Engagement")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Week, y = ~Engagement, type = 'scatter', mode = 'lines')
     })
     
     #single user valueBoxOutput content
