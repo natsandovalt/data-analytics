@@ -20,7 +20,8 @@ sidebar <- dashboardSidebar(
   sidebarMenu(
     menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome"),
              menuSubItem("Information", tabName = "au_info", icon = icon("info", lib = "font-awesome")),
-             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome"))
+             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome")),
+             menuSubItem("Classic", tabName = "allClassic", icon = icon("eye", lib = "font-awesome"))
              ),
     menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
              selectInput("user", "User:", width = 300, choices=unique(logs$User)),
@@ -238,6 +239,16 @@ frowc3 <- fluidRow(
   )
 )
 
+frowc4 <- fluidRow(
+  box(
+    title = "Mean and std cigarrete consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("meanAndStdAll")
+  )
+)
+
 frowe1 <- fluidRow(
   box(
     width=12,
@@ -272,7 +283,8 @@ body <- dashboardBody(
     tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map),
     tabItem(tabName = "singleClassic", frowc1, frowc2, frowc3),
-    tabItem(tabName = "singleEngagement", frowe1, frowe2)
+    tabItem(tabName = "singleEngagement", frowe1, frowe2),
+    tabItem(tabName = "allClassic", frowc4)
   )
 )
 
@@ -549,6 +561,37 @@ server <- function(input, output, session){
     output$meanAndStd <- renderPlotly({
       user <- logs %>% filter(User==input$user)
       consumption <- user %>% filter(Type=="Cheated" | Type== "On Time" | Type=="Behaviour")
+      consumption_weekdays <- count(consumption, Weekday, Type)
+      weekdays <- unique(consumption_weekdays$Weekday)
+      # Data frame to plot the mean and std for each weekday
+      df <- data.frame(Weekday=character(), Mean=double(), Std=double())
+      for(value in weekdays){
+        day <- consumption_weekdays %>% filter(Weekday==value)
+        rows <- nrow(day)
+        if(rows == 1){
+          dummy <- data.frame(value, "Dummy1", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+
+          dummy <- data.frame(value, "Dummy2", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+        } else if (rows == 2){
+          dummy <- data.frame(value, "Dummy", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+        }
+        mean <- mean(day$n)
+        std <- sd(day$n)
+        temp <- data.frame(value, mean, std)
+        names(temp) <- c("Weekday", "Mean", "Std")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Weekday, y = ~Mean, type = 'bar', error_y = ~list(array = Std, color = '#000000'))
+    })
+
+    output$meanAndStdAll <- renderPlotly({
+      consumption <- logs %>% filter(Type=="Cheated" | Type== "On Time" | Type=="Behaviour")
       consumption_weekdays <- count(consumption, Weekday, Type)
       weekdays <- unique(consumption_weekdays$Weekday)
       # Data frame to plot the mean and std for each weekday
