@@ -20,12 +20,13 @@ sidebar <- dashboardSidebar(
   sidebarMenu(
     menuItem("All Users", tabName = "allUsers", icon = icon("users", lib = "font-awesome"),
              menuSubItem("Information", tabName = "au_info", icon = icon("info", lib = "font-awesome")),
-             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome"))),
-    #menuItem("Plotly", tabName = "x", icon = icon("bar-chart", lib = "font-awesome")),
-    #,
+             menuSubItem("Dashboard", tabName = "allUsers", icon = icon("dashboard", lib = "font-awesome"))
+             ),
     menuItem("Single User", tabName = "singleUser", icon = icon("user", lib = "font-awesome"),
              selectInput("user", "User:", width = 300, choices=unique(logs$User)),
              menuSubItem("Information", tabName = "su_info", icon = icon("info", lib = "font-awesome")),
+             menuSubItem("Classic", tabName = "singleClassic", icon = icon("eye", lib = "font-awesome")),
+             menuSubItem("Engagement", tabName = "singleEngagement", icon = icon("star", lib = "font-awesome")),
              menuSubItem("Dashboard", tabName = "singleUser", icon = icon("dashboard", lib = "font-awesome")),
              menuSubItem("Week", tabName = "su_week", icon = icon("calendar", lib = "font-awesome")),
              menuSubItem("All Days", tabName = "su_all", icon = icon("calendar-o", lib = "font-awesome")),
@@ -97,7 +98,8 @@ frow.su_info_2 <- fluidRow(
     tags$b("Mean of consumed cigarettes:"), textOutput("avgCigPerDay", inline = TRUE), br(),
     tags$b("Mean of consumed cigarettes in weekdays:"), textOutput("avgCigWeekday", inline = TRUE), br(),
     tags$b("Mean of consumed cigarettes in weekends:"), textOutput("avgCigWeekend", inline = TRUE), br(),
-    tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br()
+    tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br(),
+    tags$b("Overall Engagement:"), textOutput("avgEngagement", inline = TRUE), br()
   )
 )
 
@@ -198,6 +200,45 @@ frow.map <- fluidRow(
     leafletOutput("mymap",height = 600)
   )
 )
+
+frowc1 <- fluidRow(
+  box(
+    tags$b("Consumption:"), textOutput("totalConsumption", inline = TRUE), br(),
+    tags$b("Consumption weekends:"), textOutput("weekendConsumption", inline = TRUE), br(),
+    tags$b("Consumption weekdays:"), textOutput("weekdayConsumption", inline = TRUE), br(),
+    tags$b("Last 7 days consumption:"), textOutput("lastSevenDays", inline = TRUE)
+  ),
+  box(
+    title = "Mean and std cigarrete consumption per weekday",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("meanAndStd")
+  )
+)
+
+frowe1 <- fluidRow(
+  box(
+    width=12,
+    title = "Engagement per day",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("engagementPerDay")
+  )
+)
+
+frowe2 <- fluidRow(
+  box(
+    width=12,
+    title = "Engagement per week",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("engagementPerWeek")
+  )
+)
+
 # Construct the body
 
 body <- dashboardBody(
@@ -208,7 +249,9 @@ body <- dashboardBody(
     tabItem(tabName = "singleUser", frow21, frow22),
     tabItem(tabName = "su_week", frow.su_week_1, frow.su_week_2),
     tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
-    tabItem(tabName = "map", frow.map)
+    tabItem(tabName = "map", frow.map),
+    tabItem(tabName = "singleClassic", frowc1),
+    tabItem(tabName = "singleEngagement", frowe1, frowe2)
   )
 )
 
@@ -216,6 +259,7 @@ ui <- dashboardPage(title = "Project", header, sidebar, body, skin = 'red')
 
 # Server
 server <- function(input, output, session){
+    Sys.setlocale("LC_TIME", "English") # Set days in english
     total.revenue <- sum(recommendation$Revenue)
     sales.account <- recommendation %>% group_by(Account) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
     prof.prod <- recommendation %>% group_by(Product) %>% summarise(value = sum(Revenue)) %>% filter(value == max(value))
@@ -233,6 +277,9 @@ server <- function(input, output, session){
     })
     surveydata.filterUser <- reactive({
       x <- surveydata %>% filter(Name==input$user)
+    })
+    logs.consumptionWeekday <- reactive({
+      x <- logs %>% filter(User==input$user, Type=='Cheated' | Type=='On time')
     })
     pickup_date <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%d/%m/%Y")
     pickup_time <- format(as.POSIXct(strptime(logs$Time,"%d/%m/%Y %H:%M",tz="")), format="%H:%M")
@@ -313,6 +360,74 @@ server <- function(input, output, session){
         summarise(consumed = sum(Type=='Cheated' | Type=='On time' | Type=='Behaviour'))
       sum(df$consumed)/nrow(df)
     })
+
+    totalConsumption <- reactive({
+      logs <- logs.consumptionWeekday()
+      df <- count(logs, Weekday)
+      if(nrow(df) == 0){
+        0
+      }else{
+        sum(df[2])
+      }
+    })
+
+    weekdayConsumption <- reactive({
+      logs <- logs.consumptionWeekday()
+      df <- count(logs, Weekday)
+      consumption_weekdays.data <- subset(df, Weekday == "Monday" | Weekday == "Tuesday" | Weekday == "Wednesday" | Weekday == "Thursday" | Weekday == "Friday", select = c("Weekday", "n"))
+      if(nrow(consumption_weekdays.data) == 0){
+        0
+      }else{
+        sum(consumption_weekdays.data[2])
+      }
+    })
+
+    weekendConsumption <- reactive({
+      logs <- logs.consumptionWeekday()
+      df <- count(logs, Weekday)
+      consumption_weekends.data <- subset(df, Weekday == "Saturday" | Weekday == "Sunday", select = c("Weekday", "n"))
+      if(nrow(consumption_weekends.data) == 0){
+        0
+      }else{
+        sum(consumption_weekends.data[2])
+      }
+    })
+
+    lastSevenDays <- reactive({
+      user <- logs %>% filter(User==input$user)
+      consumption <- user %>% filter(Type=='Cheated' | Type=='On Time')
+      seven_days <- consumption %>% filter(dateFormatted > today() - 7)
+      count(seven_days)$n
+    })
+
+    # weekProgress(week, user) <- reactive({
+    #   if(week == 1 | week == 2){
+    #     behavior <- user %>% filter(Type=='Behaviour')
+    #     behavior <- count(behavior)
+    #     consumption <- user %>% filter(userDate == week, Type=='Cheated' | Type=='On Time')
+    #     consumption <- count(consumption)
+    #     (behavior - consumption) / behavior
+    #   }else{
+    #     consumptions = c()
+    #     for(i in 1:3){
+    #       consumption <- user %>% filter(userDate == (week - i), Type=='Cheated' | Type=='On Time')
+    #       consumption <- count(consumption)
+    #       consumptions[i] <- consumption$n
+    #     }
+    #     past_weeks <- mean(consumptions)
+    #     consumption <- user %>% filter(userDate == week, Type=='Cheated' | Type=='On Time')
+    #     (past_weeks - consumption) / past_weeks
+    #   }
+    # })
+
+    # userProgress() <- reactive({
+    #   user <- logs %>% filter(User==input$user)
+    #   dates <- user$dateFormatted
+    #   week <- as.numeric(dates-dates[1]) %/% 7
+    #   user$userDate <- week
+    #   progress <- c()
+
+    # })
     
     peakTimeSlot <- reactive({
       df <- logs.filterSmokedAndUser()
@@ -325,6 +440,33 @@ server <- function(input, output, session){
       df3 <- df2 %>% group_by(slot) %>% summarise(f = n())
       df4 <- df3[order(-df3$f),]
       df4$slot[1]
+    })
+    
+    avgEngagement <- reactive({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(week)
+      # Data frame to plot the engagement of each week
+      df <- data.frame(Week=integer(), Engagement=double())
+      for(value in weeks){
+        auto_skipped <- user %>% filter(userDate==value, Type=="Auto skipped")
+        auto_skipped <- count(auto_skipped)$n
+        other_types <- user %>% filter(userDate==value, Type=="Auto skipped" | Type=="Skipped" | Type=="On Time" | Type=="Snoozed")
+        other_types <- count(other_types)$n
+        engagement <- 1 - (auto_skipped/other_types)
+        engagement <- engagement * 100
+        temp <- data.frame(value, engagement)
+        names(temp) <- c("Week", "Engagement")
+        df <- rbind(df, temp)
+      }
+      df[is.na(df)] <- 0
+      df <- df %>%
+        group_by(Week) %>%
+        filter(Week>0) %>%
+        summarise(eng = sum(Engagement))
+      sum(df$eng)/nrow(df)
     })
   
   #cig saved AU
@@ -438,6 +580,81 @@ server <- function(input, output, session){
         layout(yaxis = list(title = 'Count'), barmode = 'group')
         
     })
+
+    output$meanAndStd <- renderPlotly({
+      user <- logs %>% filter(User==input$user)
+      consumption <- user %>% filter(Type=="Cheated" | Type== "On Time" | Type=="Behaviour")
+      consumption_weekdays <- count(consumption, Weekday, Type)
+      weekdays <- unique(consumption_weekdays$Weekday)
+      # Data frame to plot the mean and std for each weekday
+      df <- data.frame(Weekday=character(), Mean=double(), Std=double())
+      for(value in weekdays){
+        day <- consumption_weekdays %>% filter(Weekday==value)
+        rows <- nrow(day)
+        if(rows == 1){
+          dummy <- data.frame(value, "Dummy1", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+
+          dummy <- data.frame(value, "Dummy2", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+        } else if (rows == 2){
+          dummy <- data.frame(value, "Dummy", 0)
+          names(dummy) <- c("Weekday", "Type", "n")
+          day <- rbind(day, dummy)
+        }
+        mean <- mean(day$n)
+        std <- sd(day$n)
+        temp <- data.frame(value, mean, std)
+        names(temp) <- c("Weekday", "Mean", "Std")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Weekday, y = ~Mean, type = 'bar', error_y = ~list(array = Std, color = '#000000'))
+    })
+
+    output$engagementPerDay <- renderPlotly({
+      user <- logs %>% filter(User==input$user)
+      user_dates <- unique(user$dateFormatted)
+      # Data frame to plot the engagement of each day
+      df <- data.frame(Day=integer(), Engagement=double())
+      cont <- 1
+      for(value in user_dates){
+        auto_skipped <- user %>% filter(dateFormatted==value, Type=="Auto skipped")
+        auto_skipped <- count(auto_skipped)$n
+        other_types <- user %>% filter(dateFormatted==value, Type=="Auto skipped" | Type=="Skipped" | Type=="On Time" | Type=="Snoozed")
+        other_types <- count(other_types)$n
+        engagement <- 1 - (auto_skipped/other_types)
+        engagement <- engagement * 100
+        temp <- data.frame(cont, engagement)
+        names(temp) <- c("Day", "Engagement")
+        df <- rbind(df, temp)
+        cont <- cont + 1
+      }
+      p <- plot_ly(df, x = ~Day, y = ~Engagement, type = 'scatter', mode = 'lines')
+    })
+
+    output$engagementPerWeek <- renderPlotly({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(week)
+      # Data frame to plot the engagement of each week
+      df <- data.frame(Week=integer(), Engagement=double())
+      for(value in weeks){
+        auto_skipped <- user %>% filter(userDate==value, Type=="Auto skipped")
+        auto_skipped <- count(auto_skipped)$n
+        other_types <- user %>% filter(userDate==value, Type=="Auto skipped" | Type=="Skipped" | Type=="On Time" | Type=="Snoozed")
+        other_types <- count(other_types)$n
+        engagement <- 1 - (auto_skipped/other_types)
+        engagement <- engagement * 100
+        temp <- data.frame(value, engagement)
+        names(temp) <- c("Week", "Engagement")
+        df <- rbind(df, temp)
+      }
+      p <- plot_ly(df, x = ~Week, y = ~Engagement, type = 'scatter', mode = 'lines')
+    })
     
     #single user valueBoxOutput content
     genderIcon <- function(gender){
@@ -536,11 +753,31 @@ server <- function(input, output, session){
     output$avgCigWeekend <- renderText({
       avgCigWeekend()
     })
+
+    output$totalConsumption <- renderText({
+      totalConsumption()
+    })
+
+    output$weekendConsumption <- renderText({
+      weekendConsumption()
+    })
+
+    output$weekdayConsumption <- renderText({
+      weekdayConsumption()
+    })
+
+    output$lastSevenDays <- renderText({
+      lastSevenDays()
+    })
     
     output$peakTimeSlot <- renderText({
       a <- as.numeric(peakTimeSlot())
       b <- a+2
       paste(a, ":00 - ", b, ":00", sep = "")
+    })
+    
+    output$avgEngagement <- renderText({
+      avgEngagement()
     })
     
     #Total number of each mode
