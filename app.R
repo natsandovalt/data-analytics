@@ -845,39 +845,39 @@ server <- function(input, output, session){
     })
     
     output$cigSaved <- renderText({
-      cigSaved()
+      round(cigSaved(), digits = 2)
     })
     
     output$moneySaved <- renderText({
-      paste(cigSaved(),"$")
+      paste(round(cigSaved(), digits = 2),"$")
     })
     
     output$avgCigPerDay <- renderText({
-      avgCigPerDay()
+      round(avgCigPerDay(), digits = 2)
     })
     
     output$avgCigWeekday <- renderText({
-      avgCigWeekday()
+      round(avgCigWeekday(), digits = 2)
     })
     
     output$avgCigWeekend <- renderText({
-      avgCigWeekend()
+      round(avgCigWeekend(), digits = 2)
     })
 
     output$totalConsumption <- renderText({
-      totalConsumption()
+      round(totalConsumption(), digits = 2)
     })
 
     output$weekendConsumption <- renderText({
-      weekendConsumption()
+      round(weekendConsumption(), digits = 2)
     })
 
     output$weekdayConsumption <- renderText({
-      weekdayConsumption()
+      round(weekdayConsumption(), digits = 2)
     })
 
     output$lastSevenDays <- renderText({
-      lastSevenDays()
+      round(lastSevenDays(), digits = 2)
     })
     
     output$peakTimeSlot <- renderText({
@@ -887,7 +887,11 @@ server <- function(input, output, session){
     })
     
     output$avgEngagement <- renderText({
-      avgEngagement()
+      paste(round(avgEngagement(), digits = 2),"%")
+    })
+    
+    output$avgProg <- renderText({
+      paste(round(avgProg(), digits = 2),"%")
     })
     
     #Total number of each mode
