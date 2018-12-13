@@ -99,6 +99,9 @@ frow.su_info_2 <- fluidRow(
     tags$b("Mean of consumed cigarettes in weekdays:"), textOutput("avgCigWeekday", inline = TRUE), br(),
     tags$b("Mean of consumed cigarettes in weekends:"), textOutput("avgCigWeekend", inline = TRUE), br(),
     tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br(),
+    tags$b("Overall Progress:"), textOutput("avgProg", inline = TRUE), br(),
+    tags$b("Progress Category:"), textOutput("progCat", inline = TRUE), br(),
+    tags$b("Best Rate of Progress:"), textOutput("peakProg", inline = TRUE), br(),
     tags$b("Overall Engagement:"), textOutput("avgEngagement", inline = TRUE), br()
   )
 )
@@ -217,6 +220,17 @@ frowc1 <- fluidRow(
   )
 )
 
+frowc2 <- fluidRow(
+  box(
+    width = 12,
+    title = "Progress over all period",
+    status = "primary",
+    solidHeader = TRUE,
+    collapsible = TRUE,
+    plotlyOutput("userProgress")
+  )
+)
+
 frowe1 <- fluidRow(
   box(
     width=12,
@@ -250,7 +264,7 @@ body <- dashboardBody(
     tabItem(tabName = "su_week", frow.su_week_1, frow.su_week_2),
     tabItem(tabName = "su_all", frow.su_all_1, frow.su_all_2),
     tabItem(tabName = "map", frow.map),
-    tabItem(tabName = "singleClassic", frowc1),
+    tabItem(tabName = "singleClassic", frowc1, frowc2),
     tabItem(tabName = "singleEngagement", frowe1, frowe2)
   )
 )
@@ -399,35 +413,6 @@ server <- function(input, output, session){
       seven_days <- consumption %>% filter(dateFormatted > today() - 7)
       count(seven_days)$n
     })
-
-    # weekProgress(week, user) <- reactive({
-    #   if(week == 1 | week == 2){
-    #     behavior <- user %>% filter(Type=='Behaviour')
-    #     behavior <- count(behavior)
-    #     consumption <- user %>% filter(userDate == week, Type=='Cheated' | Type=='On Time')
-    #     consumption <- count(consumption)
-    #     (behavior - consumption) / behavior
-    #   }else{
-    #     consumptions = c()
-    #     for(i in 1:3){
-    #       consumption <- user %>% filter(userDate == (week - i), Type=='Cheated' | Type=='On Time')
-    #       consumption <- count(consumption)
-    #       consumptions[i] <- consumption$n
-    #     }
-    #     past_weeks <- mean(consumptions)
-    #     consumption <- user %>% filter(userDate == week, Type=='Cheated' | Type=='On Time')
-    #     (past_weeks - consumption) / past_weeks
-    #   }
-    # })
-
-    # userProgress() <- reactive({
-    #   user <- logs %>% filter(User==input$user)
-    #   dates <- user$dateFormatted
-    #   week <- as.numeric(dates-dates[1]) %/% 7
-    #   user$userDate <- week
-    #   progress <- c()
-
-    # })
     
     peakTimeSlot <- reactive({
       df <- logs.filterSmokedAndUser()
@@ -467,6 +452,135 @@ server <- function(input, output, session){
         filter(Week>0) %>%
         summarise(eng = sum(Engagement))
       sum(df$eng)/nrow(df)
+    })
+    
+    avgProg <- reactive({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(user$userDate)
+      weeks <- weeks[-1]
+      # Data frame to plot the progress of each week
+      df <- data.frame(Week=integer(), Progress=double())
+      for(value in weeks){
+        if(value == 1 | value == 2){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          progress <- (behavior - consumption) / behavior
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else if(value == 3){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption1 <- user %>% filter(userDate == 1, Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == 2, Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption <- user %>% filter(userDate == 3, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n 
+          avg <- c(behavior, consumption1, consumption2)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else{
+          consumption1 <- user %>% filter(userDate == (value - 1), Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == (value - 2), Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption3 <- user %>% filter(userDate == (value - 3), Type=='Cheated' | Type=='On Time')
+          consumption3 <- count(consumption3)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          avg <- c(consumption1, consumption2, consumption3)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          if(progress < 0){
+            min_consumption <- min(c(consumption1, consumption2, consumption3))
+            progress <- (avg - min_consumption) / avg
+          }
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }
+      }
+      df[is.na(df)] <- 0
+      df <- df %>%
+        group_by(Week) %>%
+        filter(Week>0) %>%
+        summarise(eng = sum(Progress))
+      sum(df$eng)/nrow(df)
+    })
+    
+    peakProg <- reactive({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(user$userDate)
+      weeks <- weeks[-1]
+      # Data frame to plot the progress of each week
+      df <- data.frame(Week=integer(), Progress=double())
+      for(value in weeks){
+        if(value == 1 | value == 2){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          progress <- (behavior - consumption) / behavior
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else if(value == 3){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption1 <- user %>% filter(userDate == 1, Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == 2, Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption <- user %>% filter(userDate == 3, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n 
+          avg <- c(behavior, consumption1, consumption2)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else{
+          consumption1 <- user %>% filter(userDate == (value - 1), Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == (value - 2), Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption3 <- user %>% filter(userDate == (value - 3), Type=='Cheated' | Type=='On Time')
+          consumption3 <- count(consumption3)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          avg <- c(consumption1, consumption2, consumption3)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          if(progress < 0){
+            min_consumption <- min(c(consumption1, consumption2, consumption3))
+            progress <- (avg - min_consumption) / avg
+          }
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }
+      }
+      df[is.na(df)] <- 0
+      df <- df[order(-df$Progress),]
+      df$Week[1]
     })
   
   #cig saved AU
@@ -655,6 +769,67 @@ server <- function(input, output, session){
       }
       p <- plot_ly(df, x = ~Week, y = ~Engagement, type = 'scatter', mode = 'lines')
     })
+
+    output$userProgress <- renderPlotly({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(user$userDate)
+      weeks <- weeks[-1]
+      # Data frame to plot the progress of each week
+      df <- data.frame(Week=integer(), Progress=double())
+      for(value in weeks){
+        if(value == 1 | value == 2){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          progress <- (behavior - consumption) / behavior
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else if(value == 3){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption1 <- user %>% filter(userDate == 1, Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == 2, Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption <- user %>% filter(userDate == 3, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n 
+          avg <- c(behavior, consumption1, consumption2)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else{
+          consumption1 <- user %>% filter(userDate == (value - 1), Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == (value - 2), Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption3 <- user %>% filter(userDate == (value - 3), Type=='Cheated' | Type=='On Time')
+          consumption3 <- count(consumption3)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          avg <- c(consumption1, consumption2, consumption3)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          if(progress < 0){
+            min_consumption <- min(c(consumption1, consumption2, consumption3))
+            progress <- (avg - min_consumption) / avg
+          }
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }
+      }
+      p <- plot_ly(df, x = ~Week, y = ~Progress, type = 'scatter', mode = 'lines')
+    })
     
     #single user valueBoxOutput content
     genderIcon <- function(gender){
@@ -735,39 +910,39 @@ server <- function(input, output, session){
     })
     
     output$cigSaved <- renderText({
-      cigSaved()
+      round(cigSaved(), digits = 2)
     })
     
     output$moneySaved <- renderText({
-      paste(cigSaved(),"$")
+      paste(round(cigSaved(), digits = 2),"$")
     })
     
     output$avgCigPerDay <- renderText({
-      avgCigPerDay()
+      round(avgCigPerDay(), digits = 2)
     })
     
     output$avgCigWeekday <- renderText({
-      avgCigWeekday()
+      round(avgCigWeekday(), digits = 2)
     })
     
     output$avgCigWeekend <- renderText({
-      avgCigWeekend()
+      round(avgCigWeekend(), digits = 2)
     })
 
     output$totalConsumption <- renderText({
-      totalConsumption()
+      round(totalConsumption(), digits = 2)
     })
 
     output$weekendConsumption <- renderText({
-      weekendConsumption()
+      round(weekendConsumption(), digits = 2)
     })
 
     output$weekdayConsumption <- renderText({
-      weekdayConsumption()
+      round(weekdayConsumption(), digits = 2)
     })
 
     output$lastSevenDays <- renderText({
-      lastSevenDays()
+      round(lastSevenDays(), digits = 2)
     })
     
     output$peakTimeSlot <- renderText({
@@ -777,7 +952,25 @@ server <- function(input, output, session){
     })
     
     output$avgEngagement <- renderText({
-      avgEngagement()
+      paste(round(avgEngagement(), digits = 2),"%")
+    })
+    
+    output$avgProg <- renderText({
+      paste(round(avgProg(), digits = 2),"%")
+    })
+    
+    output$progCat <- renderText({
+      if(avgProg()<=20){
+        "Low"
+      }else if(avgProg()>=50){
+        "High"
+      }else{
+        "Medium"
+      }
+    })
+    
+    output$peakProg <- renderText({
+      paste("Week", peakProg())
     })
     
     #Total number of each mode
