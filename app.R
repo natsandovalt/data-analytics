@@ -100,6 +100,8 @@ frow.su_info_2 <- fluidRow(
     tags$b("Mean of consumed cigarettes in weekends:"), textOutput("avgCigWeekend", inline = TRUE), br(),
     tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br(),
     tags$b("Overall Progress:"), textOutput("avgProg", inline = TRUE), br(),
+    tags$b("Progress Category:"), textOutput("progCat", inline = TRUE), br(),
+    tags$b("Best Rate of Progress:"), textOutput("peakProg", inline = TRUE), br(),
     tags$b("Overall Engagement:"), textOutput("avgEngagement", inline = TRUE), br()
   )
 )
@@ -517,6 +519,69 @@ server <- function(input, output, session){
         summarise(eng = sum(Progress))
       sum(df$eng)/nrow(df)
     })
+    
+    peakProg <- reactive({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(user$userDate)
+      weeks <- weeks[-1]
+      # Data frame to plot the progress of each week
+      df <- data.frame(Week=integer(), Progress=double())
+      for(value in weeks){
+        if(value == 1 | value == 2){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          progress <- (behavior - consumption) / behavior
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else if(value == 3){
+          behavior <- user %>% filter(Type=='Behaviour')
+          behavior <- count(behavior)$n
+          consumption1 <- user %>% filter(userDate == 1, Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == 2, Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption <- user %>% filter(userDate == 3, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n 
+          avg <- c(behavior, consumption1, consumption2)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }else{
+          consumption1 <- user %>% filter(userDate == (value - 1), Type=='Cheated' | Type=='On Time')
+          consumption1 <- count(consumption1)$n
+          consumption2 <- user %>% filter(userDate == (value - 2), Type=='Cheated' | Type=='On Time')
+          consumption2 <- count(consumption2)$n
+          consumption3 <- user %>% filter(userDate == (value - 3), Type=='Cheated' | Type=='On Time')
+          consumption3 <- count(consumption3)$n
+          consumption <- user %>% filter(userDate == value, Type=='Cheated' | Type=='On Time')
+          consumption <- count(consumption)$n
+          avg <- c(consumption1, consumption2, consumption3)
+          avg <- mean(avg)
+          progress <- (avg - consumption) / avg
+          if(progress < 0){
+            min_consumption <- min(c(consumption1, consumption2, consumption3))
+            progress <- (avg - min_consumption) / avg
+          }
+          progress <- progress * 100
+          temp <- data.frame(value, progress)
+          names(temp) <- c("Week", "Progress")
+          df <- rbind(df, temp)
+        }
+      }
+      df[is.na(df)] <- 0
+      df <- df[order(-df$Progress),]
+      df$Week[1]
+    })
   
   #cig saved AU
   logs.filtered.each <- function(name){
@@ -892,6 +957,20 @@ server <- function(input, output, session){
     
     output$avgProg <- renderText({
       paste(round(avgProg(), digits = 2),"%")
+    })
+    
+    output$progCat <- renderText({
+      if(avgProg()<=20){
+        "Low"
+      }else if(avgProg()>=50){
+        "High"
+      }else{
+        "Medium"
+      }
+    })
+    
+    output$peakProg <- renderText({
+      paste("Week", peakProg())
     })
     
     #Total number of each mode
