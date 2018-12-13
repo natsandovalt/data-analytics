@@ -98,7 +98,8 @@ frow.su_info_2 <- fluidRow(
     tags$b("Mean of consumed cigarettes:"), textOutput("avgCigPerDay", inline = TRUE), br(),
     tags$b("Mean of consumed cigarettes in weekdays:"), textOutput("avgCigWeekday", inline = TRUE), br(),
     tags$b("Mean of consumed cigarettes in weekends:"), textOutput("avgCigWeekend", inline = TRUE), br(),
-    tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br()
+    tags$b("Most Smoking Intensity Slot:"), textOutput("peakTimeSlot", inline = TRUE), br(),
+    tags$b("Overall Engagement:"), textOutput("avgEngagement", inline = TRUE), br()
   )
 )
 
@@ -440,6 +441,33 @@ server <- function(input, output, session){
       df4 <- df3[order(-df3$f),]
       df4$slot[1]
     })
+    
+    avgEngagement <- reactive({
+      user <- logs %>% filter(User==input$user)
+      dates <- user$dateFormatted
+      week <- as.numeric(dates-dates[1]) %/% 7
+      user$userDate <- week
+      weeks <- unique(week)
+      # Data frame to plot the engagement of each week
+      df <- data.frame(Week=integer(), Engagement=double())
+      for(value in weeks){
+        auto_skipped <- user %>% filter(userDate==value, Type=="Auto skipped")
+        auto_skipped <- count(auto_skipped)$n
+        other_types <- user %>% filter(userDate==value, Type=="Auto skipped" | Type=="Skipped" | Type=="On Time" | Type=="Snoozed")
+        other_types <- count(other_types)$n
+        engagement <- 1 - (auto_skipped/other_types)
+        engagement <- engagement * 100
+        temp <- data.frame(value, engagement)
+        names(temp) <- c("Week", "Engagement")
+        df <- rbind(df, temp)
+      }
+      df[is.na(df)] <- 0
+      df <- df %>%
+        group_by(Week) %>%
+        filter(Week>0) %>%
+        summarise(eng = sum(Engagement))
+      sum(df$eng)/nrow(df)
+    })
   
   #cig saved AU
   logs.filtered.each <- function(name){
@@ -746,6 +774,10 @@ server <- function(input, output, session){
       a <- as.numeric(peakTimeSlot())
       b <- a+2
       paste(a, ":00 - ", b, ":00", sep = "")
+    })
+    
+    output$avgEngagement <- renderText({
+      avgEngagement()
     })
     
     #Total number of each mode
